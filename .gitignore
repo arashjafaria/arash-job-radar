@@ -1,0 +1,23 @@
+# Telegram secrets
+config_local.py
+config_backup.py
+.env
+
+# Old test files that may contain the bot token
+test_bot.py
+send_test.py
+get_chat_id.py
+test_new_job.py
+make_config.py
+
+# Python
+__pycache__/
+*.pyc
+
+# Local job database
+bmw_seen_jobs.json
+bmw_pagination_ready.txt
+bmw_click_pagination_ready.txt
+
+# Temporary/helper scripts
+patch_cloud_storage.py
