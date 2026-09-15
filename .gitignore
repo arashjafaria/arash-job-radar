@@ -3,7 +3,7 @@ config_local.py
 config_backup.py
 .env
 
-# Old test files that may contain the bot token
+# Old test files that may contain tokens
 test_bot.py
 send_test.py
 get_chat_id.py
@@ -14,10 +14,7 @@ make_config.py
 __pycache__/
 *.pyc
 
-# Local job database
-bmw_seen_jobs.json
+# Old helper files
 bmw_pagination_ready.txt
 bmw_click_pagination_ready.txt
-
-# Temporary/helper scripts
 patch_cloud_storage.py
