@@ -1,54 +1,104 @@
 # ============================================================
 # ARASH PROFESSIONAL PROFILE
-# Later we will refine this file using the full CV.
+# Temporary profile until the updated CV is available
 # ============================================================
 
 ARASH_EXPERIENCE_YEARS = 2.0
+
+CURRENT_LOCATION = "Munich, Germany"
+
+CURRENT_COMPANY = "ARRK Engineering GmbH"
+
+EDUCATION = [
+    "Deggendorf Institute of Technology"
+]
+
+LANGUAGES = {
+    "english": "fluent",
+    "german": "good working knowledge",
+}
+
+LINKEDIN_CERTIFICATIONS = [
+    "Advanced Python",
+    "Python Data Analysis",
+    "Advanced Python: Working with Databases",
+    "Using Python with Excel",
+    "Programming Foundations: Object-Oriented Design",
+]
+
 
 # ------------------------------------------------------------
 # ACCEPTED LOCATIONS
 # Munich + surrounding area
 # ------------------------------------------------------------
-
 MUNICH_AREA = [
+    # Munich
     "münchen",
     "munich",
+
+    # North / North-East
     "garching",
     "eching",
     "unterschleißheim",
     "oberschleißheim",
     "ismaning",
+    "hallbergmoos",
+    "neufahrn",
+    "freising",
+    "erding",
+
+    # East
+    "asheim",
+    "aschheim",
+    "feldkirchen",
+    "kirchheim",
+    "poing",
+    "haar",
+    "vaterstetten",
+    "markt schwaben",
+
+    # South / South-East
     "ottobrunn",
     "unterhaching",
     "taufkirchen",
     "neubiberg",
-    "haar",
-    "aschau",
+    "hohenbrunn",
+    "brunnthal",
+    "pullach",
+    "grünwald",
+
+    # West / North-West
     "dachau",
-    "freising",
-    "erding",
+    "karlsfeld",
     "fürstenfeldbruck",
     "germering",
+    "puchheim",
+    "olching",
+    "gröbenzell",
+    "maisach",
+
+    # South-West
     "gräfelfing",
     "planegg",
     "krailling",
-    "puchheim",
-    "olching",
+    "gauting",
     "starnberg",
 ]
 
 
+# ------------------------------------------------------------
+# REMOTE JOBS
+# ------------------------------------------------------------
 REMOTE_WORDS = [
     "remote",
+    "fully remote",
+    "100% remote",
     "home office",
     "homeoffice",
-    "mobiles arbeiten",
-    "mobile arbeit",
-    "mobile working",
-    "hybrid",
-    "hybrides arbeiten",
+    "work from home",
+    "remote germany",
+    "remote within germany",
 ]
-
 
 # ------------------------------------------------------------
 # HARD EXCLUSIONS
@@ -78,10 +128,12 @@ EXCLUDE_WORDS = [
 
 # ------------------------------------------------------------
 # SKILL WEIGHTS
-# Higher = more relevant to Arash
+# Higher score = more relevant for Arash
 # ------------------------------------------------------------
 
 SKILLS = {
+
+    # Very strong automotive/testing skills
     "canoe": 20,
     "capl": 20,
     "uds": 20,
@@ -105,7 +157,10 @@ SKILLS = {
     "hil": 16,
     "sil": 16,
 
-    "python": 14,
+    # Python is now weighted higher
+    "python": 18,
+    "python automation": 18,
+    "scripting": 10,
 
     "validation": 14,
     "verification": 14,
@@ -118,8 +173,8 @@ SKILLS = {
 
     "embedded": 12,
 
-    "test automation": 14,
-    "testautomatisierung": 14,
+    "test automation": 18,
+    "testautomatisierung": 18,
     "automatisierung": 10,
 
     "software testing": 14,
@@ -129,6 +184,17 @@ SKILLS = {
 
     "e/e": 10,
 
+    # Supporting Python/Data skills from LinkedIn
+    "object oriented": 8,
+    "object-oriented": 8,
+    "oop": 8,
+    "database": 7,
+    "databases": 7,
+    "sql": 7,
+    "data analysis": 6,
+    "excel": 3,
+
+    # General words have low weight
     "software": 6,
     "fahrzeug": 4,
     "vehicle": 4,
