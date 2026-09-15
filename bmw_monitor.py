@@ -2,13 +2,23 @@ import json
 import os
 import html
 import re
-import requests
+from datetime import datetime, timezone
 
+import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 from urllib.parse import urljoin
 
 from config import BOT_TOKEN, CHAT_ID
+
+from profile import (
+    ARASH_EXPERIENCE_YEARS,
+    MUNICH_AREA,
+    REMOTE_WORDS,
+    EXCLUDE_WORDS,
+    SKILLS,
+    GOOD_ROLE_WORDS,
+)
 
 
 # ============================================================
@@ -26,203 +36,142 @@ BMW_URL = (
 
 DATA_DIR = os.getenv("DATA_DIR", ".")
 
-os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(
+    DATA_DIR,
+    exist_ok=True
+)
 
 SEEN_FILE = os.path.join(
     DATA_DIR,
     "bmw_seen_jobs.json"
 )
 
-# Read first 5 BMW pages = about 50 newest jobs
 PAGES_TO_SCAN = 5
 
-# Minimum score needed to send Telegram alert
-MIN_MATCH_SCORE = 30
+MAX_JOB_AGE_DAYS = 3
 
+MIN_MATCH_SCORE = 35
 
-# ============================================================
-# JOBS WE NEVER WANT
-# ============================================================
-
-EXCLUDE_PATTERNS = [
-    r"\bpraktikant",
-    r"\bpraktikum",
-    r"\bwerkstudent",
-    r"\bwerkstudentin",
-    r"\bazubi\b",
-    r"\bauszubild",
-    r"\bausbildung\b",
-    r"\bduales studium\b",
-    r"\bdualer student\b",
-    r"\bstudienabschlussarbeit\b",
-    r"\babschlussarbeit\b",
-    r"\bmasterarbeit\b",
-    r"\bbachelorarbeit\b",
-    r"\bthesis\b",
-    r"\bdoktorand",
-    r"\bpromotion\b",
-    r"\btrainee\b",
-    r"\bschüler",
-]
-
-
-# ============================================================
-# MATCH SCORE
-# ============================================================
-
-SCORE_PATTERNS = [
-
-    # Very strong matches
-    (r"\bcanoe\b", 40, "CANoe"),
-    (r"\bcapl\b", 40, "CAPL"),
-    (r"\buds\b", 40, "UDS"),
-
-    (r"\bhil\b", 35, "HIL"),
-    (r"\bsil\b", 35, "SIL"),
-
-    (r"\btestingenieur", 35, "Test Engineer"),
-    (r"\btest engineer", 35, "Test Engineer"),
-
-    (r"\bdiagnos", 30, "Diagnostics"),
-
-    (r"\bintegration", 30, "Integration"),
-
-    (r"\bvalidation", 30, "Validation"),
-    (r"\bverification", 30, "Verification"),
-
-    (r"\becu\b", 30, "ECU"),
-    (r"\bsteuergerät", 30, "ECU"),
-
-    (r"\bradar\b", 30, "Radar"),
-    (r"\badas\b", 30, "ADAS"),
-
-    # Good matches
-    (r"\btest\b", 25, "Testing"),
-    (r"\btesting\b", 25, "Testing"),
-
-    (r"\bembedded\b", 25, "Embedded"),
-
-    (r"\bpython\b", 25, "Python"),
-
-    (r"\bautomatisierung", 25, "Automation"),
-    (r"\bautomation\b", 25, "Automation"),
-
-    (r"\bethernet\b", 25, "Automotive Ethernet"),
-
-    (r"\bcan fd\b", 25, "CAN FD"),
-    (r"\bcan-fd\b", 25, "CAN FD"),
-
-    # Medium matches
-    (r"\bsoftware\b", 15, "Software"),
-
-    (r"\bentwicklungsingenieur", 15, "Development Engineer"),
-    (r"\bdevelopment engineer", 15, "Development Engineer"),
-
-    (r"\bsystemingenieur", 15, "System Engineer"),
-    (r"\bsystem engineer", 15, "System Engineer"),
-
-    (r"\bsoftwareentwickler", 15, "Software Developer"),
-
-    (r"\be/e\b", 15, "E/E"),
-
-    # Vehicle alone must NOT be enough
-    (r"\bfahrzeug", 5, "Automotive"),
-    (r"\bvehicle\b", 5, "Automotive"),
-]
+TELEGRAM_MAX = 3900
 
 
 # ============================================================
 # TELEGRAM
 # ============================================================
 
-def send_telegram(message):
+def send_telegram(text):
 
-    telegram_url = (
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    url = (
+        f"https://api.telegram.org/"
+        f"bot{BOT_TOKEN}/sendMessage"
     )
 
-    data = {
-        "chat_id": CHAT_ID,
-        "text": message,
-        "disable_web_page_preview": False
-    }
+    response = requests.post(
+        url,
+        data={
+            "chat_id": CHAT_ID,
+            "text": text,
+            "disable_web_page_preview": False
+        },
+        timeout=30
+    )
 
-    try:
+    if response.status_code == 200:
 
-        response = requests.post(
-            telegram_url,
-            data=data,
-            timeout=20
+        print(
+            "Telegram message sent."
         )
 
-        if response.status_code == 200:
-            print("Telegram message sent successfully.")
+        return True
 
-        else:
-            print("Telegram ERROR:")
-            print(response.status_code)
-            print(response.text)
-
-    except Exception as e:
-
-        print("Telegram connection error:")
-        print(e)
-
-
-# ============================================================
-# CHECK IF JOB MUST BE EXCLUDED
-# ============================================================
-
-def is_excluded(title):
-
-    title_lower = title.lower()
-
-    for pattern in EXCLUDE_PATTERNS:
-
-        if re.search(
-            pattern,
-            title_lower,
-            flags=re.IGNORECASE
-        ):
-            return True
+    print(
+        "Telegram error:",
+        response.status_code,
+        response.text
+    )
 
     return False
 
 
+def split_telegram_text(text):
+
+    if len(text) <= TELEGRAM_MAX:
+
+        return [text]
+
+    chunks = []
+
+    current = ""
+
+    for line in text.splitlines():
+
+        test = (
+            current
+            + line
+            + "\n"
+        )
+
+        if len(test) > TELEGRAM_MAX:
+
+            if current.strip():
+
+                chunks.append(
+                    current.strip()
+                )
+
+            current = (
+                line
+                + "\n"
+            )
+
+        else:
+
+            current = test
+
+    if current.strip():
+
+        chunks.append(
+            current.strip()
+        )
+
+    return chunks
+
+
+def send_long_telegram(text):
+
+    chunks = split_telegram_text(
+        text
+    )
+
+    total = len(chunks)
+
+    for index, chunk in enumerate(
+        chunks,
+        start=1
+    ):
+
+        if total > 1:
+
+            chunk = (
+                f"Part {index}/{total}\n\n"
+                + chunk
+            )
+
+        send_telegram(
+            chunk
+        )
+
+
 # ============================================================
-# CALCULATE MATCH SCORE
-# ============================================================
-
-def calculate_match(title):
-
-    title_lower = title.lower()
-
-    score = 0
-    matches = []
-
-    for pattern, points, label in SCORE_PATTERNS:
-
-        if re.search(
-            pattern,
-            title_lower,
-            flags=re.IGNORECASE
-        ):
-
-            score += points
-
-            if label not in matches:
-                matches.append(label)
-
-    return score, matches
-
-
-# ============================================================
-# LOAD SEEN JOBS
+# JOB MEMORY
 # ============================================================
 
 def load_seen_jobs():
 
-    if not os.path.exists(SEEN_FILE):
+    if not os.path.exists(
+        SEEN_FILE
+    ):
+
         return set()
 
     try:
@@ -233,21 +182,19 @@ def load_seen_jobs():
             encoding="utf-8"
         ) as file:
 
-            data = json.load(file)
-
-            return set(data)
+            return set(
+                json.load(file)
+            )
 
     except Exception as e:
 
-        print("Could not load seen jobs:")
-        print(e)
+        print(
+            "Seen database error:",
+            e
+        )
 
         return set()
 
-
-# ============================================================
-# SAVE SEEN JOBS
-# ============================================================
 
 def save_seen_jobs(seen_jobs):
 
@@ -258,7 +205,9 @@ def save_seen_jobs(seen_jobs):
     ) as file:
 
         json.dump(
-            sorted(list(seen_jobs)),
+            sorted(
+                list(seen_jobs)
+            ),
             file,
             indent=2,
             ensure_ascii=False
@@ -266,10 +215,13 @@ def save_seen_jobs(seen_jobs):
 
 
 # ============================================================
-# READ JOBS FROM CURRENT BMW PAGE
+# LIST PAGE
 # ============================================================
 
-def read_current_page_jobs(page, page_number):
+def read_current_page_jobs(
+    page,
+    page_number
+):
 
     jobs = []
 
@@ -292,7 +244,11 @@ def read_current_page_jobs(page, page_number):
 
         try:
 
-            href = link.get_attribute("href")
+            href = (
+                link.get_attribute(
+                    "href"
+                )
+            )
 
             title = (
                 link
@@ -301,9 +257,11 @@ def read_current_page_jobs(page, page_number):
             )
 
         except Exception:
+
             continue
 
         if not href or not title:
+
             continue
 
         full_url = urljoin(
@@ -316,6 +274,7 @@ def read_current_page_jobs(page, page_number):
         )
 
         if full_url in local_seen:
+
             continue
 
         local_seen.add(
@@ -329,10 +288,6 @@ def read_current_page_jobs(page, page_number):
 
     return jobs
 
-
-# ============================================================
-# GET BMW JOBS WITH REAL PAGINATION
-# ============================================================
 
 def get_bmw_jobs():
 
@@ -353,7 +308,9 @@ def get_bmw_jobs():
             }
         )
 
-        print("Opening BMW Germany Jobs...")
+        print(
+            "Opening BMW Germany Jobs..."
+        )
 
         page.goto(
             BMW_URL,
@@ -382,9 +339,6 @@ def get_bmw_jobs():
             )
             print("=" * 60)
 
-            # Page 1 is already open
-            # For pages 2-5 click BMW pagination button
-
             if page_number > 1:
 
                 aria_label = (
@@ -398,14 +352,10 @@ def get_bmw_jobs():
                 if button.count() == 0:
 
                     print(
-                        f"Page {page_number} button not found."
+                        "Pagination button not found."
                     )
 
                     break
-
-                print(
-                    f"Clicking BMW page {page_number}..."
-                )
 
                 try:
 
@@ -419,21 +369,29 @@ def get_bmw_jobs():
 
                 except Exception as e:
 
-                    print("Page click error:")
-                    print(e)
+                    print(
+                        "Pagination error:",
+                        e
+                    )
 
                     break
 
-            page_jobs = read_current_page_jobs(
-                page,
-                page_number
+            page_jobs = (
+                read_current_page_jobs(
+                    page,
+                    page_number
+                )
             )
 
             added = 0
 
             for job in page_jobs:
 
-                if job["url"] in global_seen:
+                if (
+                    job["url"]
+                    in global_seen
+                ):
+
                     continue
 
                 global_seen.add(
@@ -457,56 +415,716 @@ def get_bmw_jobs():
 
 
 # ============================================================
-# FIND JOBPOSTING JSON-LD
+# JSON-LD SEARCH
 # ============================================================
 
 def find_job_posting(data):
 
-    if isinstance(data, dict):
+    if isinstance(
+        data,
+        dict
+    ):
 
-        job_type = data.get("@type")
+        job_type = (
+            data.get("@type")
+        )
 
-        if job_type == "JobPosting":
+        if (
+            job_type
+            == "JobPosting"
+        ):
+
             return data
 
-        if isinstance(job_type, list):
+        if isinstance(
+            job_type,
+            list
+        ):
 
-            if "JobPosting" in job_type:
+            if (
+                "JobPosting"
+                in job_type
+            ):
+
                 return data
 
         for value in data.values():
 
-            result = find_job_posting(
-                value
+            result = (
+                find_job_posting(
+                    value
+                )
             )
 
             if result:
+
                 return result
 
-    elif isinstance(data, list):
+    elif isinstance(
+        data,
+        list
+    ):
 
         for item in data:
 
-            result = find_job_posting(
-                item
+            result = (
+                find_job_posting(
+                    item
+                )
             )
 
             if result:
+
                 return result
 
     return None
 
 
 # ============================================================
-# READ JOB DETAILS
+# TEXT CLEANING
 # ============================================================
 
-def get_job_details(job_url):
+def clean_text(text):
 
-    details = {
+    text = html.unescape(
+        str(text or "")
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    )
+
+    return text.strip()
+
+
+def unique_items(items):
+
+    result = []
+
+    seen = set()
+
+    for item in items:
+
+        item = clean_text(
+            item
+        )
+
+        if not item:
+
+            continue
+
+        key = item.lower()
+
+        if key in seen:
+
+            continue
+
+        seen.add(
+            key
+        )
+
+        result.append(
+            item
+        )
+
+    return result
+
+
+# ============================================================
+# DESCRIPTION SECTION EXTRACTION
+# ============================================================
+
+TASK_HEADINGS = [
+    "aufgaben",
+    "deine aufgaben",
+    "ihre aufgaben",
+    "was erwartet dich",
+    "was erwartet sie",
+    "your responsibilities",
+    "responsibilities",
+    "what awaits you",
+    "tätigkeiten",
+]
+
+
+REQUIREMENT_HEADINGS = [
+    "qualifikation",
+    "qualifikationen",
+    "anforderungen",
+    "dein profil",
+    "ihr profil",
+    "was bringst du mit",
+    "was bringen sie mit",
+    "what you should bring",
+    "requirements",
+    "qualifications",
+    "your profile",
+]
+
+
+BENEFIT_HEADINGS = [
+    "wir bieten",
+    "benefits",
+    "was bieten wir",
+    "das bieten wir",
+    "our benefits",
+]
+
+
+def classify_heading(
+    heading
+):
+
+    h = (
+        clean_text(heading)
+        .lower()
+    )
+
+    for item in TASK_HEADINGS:
+
+        if item in h:
+
+            return "tasks"
+
+    for item in REQUIREMENT_HEADINGS:
+
+        if item in h:
+
+            return "requirements"
+
+    for item in BENEFIT_HEADINGS:
+
+        if item in h:
+
+            return "benefits"
+
+    return "other"
+
+
+def extract_description_sections(
+    description_html
+):
+
+    soup = BeautifulSoup(
+        description_html or "",
+        "html.parser"
+    )
+
+    result = {
+        "tasks": [],
+        "requirements": [],
+        "benefits": [],
+        "other": [],
+    }
+
+    current_section = "other"
+
+    for element in soup.find_all(
+        [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "strong",
+            "p",
+            "li"
+        ]
+    ):
+
+        text = clean_text(
+            element.get_text(
+                " ",
+                strip=True
+            )
+        )
+
+        if not text:
+
+            continue
+
+        if element.name in [
+            "h1",
+            "h2",
+            "h3",
+            "h4"
+        ]:
+
+            current_section = (
+                classify_heading(
+                    text
+                )
+            )
+
+            continue
+
+        if (
+            element.name == "strong"
+            and len(text) < 100
+        ):
+
+            possible = (
+                classify_heading(
+                    text
+                )
+            )
+
+            if possible != "other":
+
+                current_section = (
+                    possible
+                )
+
+                continue
+
+        # Prefer list items, but also preserve useful paragraphs.
+        if element.name == "li":
+
+            result[
+                current_section
+            ].append(text)
+
+        elif (
+            element.name == "p"
+            and len(text) >= 30
+        ):
+
+            result[
+                current_section
+            ].append(text)
+
+    for key in result:
+
+        result[key] = unique_items(
+            result[key]
+        )
+
+    return result
+
+
+# ============================================================
+# LOCATION
+# ============================================================
+
+def build_location_text(
+    posting
+):
+
+    locations = posting.get(
+        "jobLocation",
+        []
+    )
+
+    if isinstance(
+        locations,
+        dict
+    ):
+
+        locations = [
+            locations
+        ]
+
+    output = []
+
+    for location in locations:
+
+        if not isinstance(
+            location,
+            dict
+        ):
+
+            continue
+
+        address = location.get(
+            "address",
+            {}
+        )
+
+        if not isinstance(
+            address,
+            dict
+        ):
+
+            continue
+
+        city = clean_text(
+            address.get(
+                "addressLocality",
+                ""
+            )
+        )
+
+        region = clean_text(
+            address.get(
+                "addressRegion",
+                ""
+            )
+        )
+
+        country = (
+            address.get(
+                "addressCountry",
+                ""
+            )
+        )
+
+        if isinstance(
+            country,
+            dict
+        ):
+
+            country = (
+                country.get(
+                    "name",
+                    ""
+                )
+            )
+
+        country = clean_text(
+            country
+        )
+
+        pieces = [
+            x
+            for x in [
+                city,
+                region,
+                country
+            ]
+            if x
+        ]
+
+        location_text = (
+            ", ".join(
+                pieces
+            )
+        )
+
+        if (
+            location_text
+            and location_text
+            not in output
+        ):
+
+            output.append(
+                location_text
+            )
+
+    return " / ".join(
+        output
+    )
+
+
+def location_match(
+    location_text,
+    full_text
+):
+
+    haystack = (
+        (
+            location_text
+            + " "
+            + full_text
+        )
+        .lower()
+    )
+
+    for city in MUNICH_AREA:
+
+        if city in haystack:
+
+            return (
+                True,
+                "Munich area"
+            )
+
+    for word in REMOTE_WORDS:
+
+        if word in haystack:
+
+            return (
+                True,
+                "Remote / hybrid"
+            )
+
+    return (
+        False,
+        "Outside preferred area"
+    )
+
+
+# ============================================================
+# EXPERIENCE REQUIREMENT
+# ============================================================
+
+def extract_experience_years(
+    text
+):
+
+    text_lower = (
+        text.lower()
+    )
+
+    patterns = [
+        r"(\d+)\s*\+?\s*(?:years|year)\s+(?:of\s+)?experience",
+        r"at least\s+(\d+)\s+years",
+        r"minimum\s+(\d+)\s+years",
+        r"mindestens\s+(\d+)\s+jahre",
+        r"min\.\s*(\d+)\s+jahre",
+        r"(\d+)\s+jahre\s+berufserfahrung",
+        r"(\d+)\s+jährige\s+berufserfahrung",
+    ]
+
+    years = []
+
+    for pattern in patterns:
+
+        for match in re.findall(
+            pattern,
+            text_lower
+        ):
+
+            try:
+
+                years.append(
+                    int(match)
+                )
+
+            except Exception:
+
+                pass
+
+    if not years:
+
+        return None
+
+    return max(
+        years
+    )
+
+
+def experience_fit(
+    required_years
+):
+
+    if required_years is None:
+
+        return (
+            "Not explicitly stated",
+            5
+        )
+
+    if (
+        required_years
+        <= ARASH_EXPERIENCE_YEARS
+    ):
+
+        return (
+            "Good fit",
+            15
+        )
+
+    if (
+        required_years
+        <= ARASH_EXPERIENCE_YEARS
+        + 1
+    ):
+
+        return (
+            "Slight stretch",
+            5
+        )
+
+    if required_years <= 4:
+
+        return (
+            "Stretch",
+            -5
+        )
+
+    return (
+        "Too senior",
+        -20
+    )
+
+
+# ============================================================
+# NEWNESS
+# ============================================================
+
+def parse_date(
+    value
+):
+
+    if not value:
+
+        return None
+
+    value = clean_text(
+        value
+    )
+
+    try:
+
+        return (
+            datetime
+            .fromisoformat(
+                value.replace(
+                    "Z",
+                    "+00:00"
+                )
+            )
+        )
+
+    except Exception:
+
+        pass
+
+    try:
+
+        return datetime.strptime(
+            value[:10],
+            "%Y-%m-%d"
+        ).replace(
+            tzinfo=timezone.utc
+        )
+
+    except Exception:
+
+        return None
+
+
+def job_age_days(
+    date_posted
+):
+
+    dt = parse_date(
+        date_posted
+    )
+
+    if dt is None:
+
+        return None
+
+    if dt.tzinfo is None:
+
+        dt = dt.replace(
+            tzinfo=timezone.utc
+        )
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    delta = (
+        now - dt
+    )
+
+    return max(
+        0,
+        delta.days
+    )
+
+
+# ============================================================
+# MATCH SCORING
+# ============================================================
+
+def is_excluded(
+    text
+):
+
+    low = text.lower()
+
+    return any(
+        word in low
+        for word in EXCLUDE_WORDS
+    )
+
+
+def calculate_match(
+    title,
+    full_text,
+    experience_adjustment
+):
+
+    title_low = (
+        title.lower()
+    )
+
+    all_low = (
+        (
+            title
+            + " "
+            + full_text
+        )
+        .lower()
+    )
+
+    score = 0
+
+    matched = []
+
+    # Job title is especially important.
+    for role in GOOD_ROLE_WORDS:
+
+        if role in title_low:
+
+            score += 12
+
+            matched.append(
+                role
+            )
+
+    for skill, points in SKILLS.items():
+
+        if skill in all_low:
+
+            # Skill in the title is more valuable.
+            if skill in title_low:
+
+                score += (
+                    points + 5
+                )
+
+            else:
+
+                score += points
+
+            matched.append(
+                skill
+            )
+
+    score += (
+        experience_adjustment
+    )
+
+    return (
+        score,
+        unique_items(
+            matched
+        )
+    )
+
+
+# ============================================================
+# FULL JOB DETAILS
+# ============================================================
+
+def get_job_details(
+    job_url
+):
+
+    result = {
         "location": "",
         "date_posted": "",
-        "employment_type": ""
+        "employment_type": "",
+        "description_text": "",
+        "tasks": [],
+        "requirements": [],
+        "benefits": [],
+        "other": [],
     }
 
     headers = {
@@ -523,28 +1141,34 @@ def get_job_details(job_url):
         response = requests.get(
             job_url,
             headers=headers,
-            timeout=20
+            timeout=30
         )
 
-        if response.status_code != 200:
+        if (
+            response.status_code
+            != 200
+        ):
 
             print(
-                "Job detail page status:",
+                "Detail HTTP status:",
                 response.status_code
             )
 
-            return details
+            return result
 
-        soup = BeautifulSoup(
+        page_soup = BeautifulSoup(
             response.text,
             "html.parser"
         )
 
-        scripts = soup.find_all(
-            "script",
-            attrs={
-                "type": "application/ld+json"
-            }
+        scripts = (
+            page_soup.find_all(
+                "script",
+                attrs={
+                    "type":
+                    "application/ld+json"
+                }
+            )
         )
 
         for script in scripts:
@@ -552,6 +1176,7 @@ def get_job_details(job_url):
             raw = script.string
 
             if not raw:
+
                 continue
 
             try:
@@ -561,31 +1186,33 @@ def get_job_details(job_url):
                 )
 
             except Exception:
+
                 continue
 
-            posting = find_job_posting(
-                data
+            posting = (
+                find_job_posting(
+                    data
+                )
             )
 
             if not posting:
+
                 continue
 
-
-            # DATE POSTED
-
-            details["date_posted"] = (
+            result[
+                "date_posted"
+            ] = clean_text(
                 posting.get(
                     "datePosted",
                     ""
                 )
             )
 
-
-            # EMPLOYMENT TYPE
-
-            employment = posting.get(
-                "employmentType",
-                ""
+            employment = (
+                posting.get(
+                    "employmentType",
+                    ""
+                )
             )
 
             if isinstance(
@@ -593,124 +1220,221 @@ def get_job_details(job_url):
                 list
             ):
 
-                employment = ", ".join(
-                    employment
+                employment = (
+                    ", ".join(
+                        employment
+                    )
                 )
 
-            if employment:
-
-                details["employment_type"] = str(
-                    employment
-                )
-
-
-            # LOCATION
-
-            locations = posting.get(
-                "jobLocation",
-                []
+            result[
+                "employment_type"
+            ] = clean_text(
+                employment
             )
 
-            if isinstance(
-                locations,
-                dict
-            ):
-
-                locations = [
-                    locations
-                ]
-
-            location_parts = []
-
-            for location in locations:
-
-                if not isinstance(
-                    location,
-                    dict
-                ):
-                    continue
-
-                address = location.get(
-                    "address",
-                    {}
+            result[
+                "location"
+            ] = (
+                build_location_text(
+                    posting
                 )
-
-                if not isinstance(
-                    address,
-                    dict
-                ):
-                    continue
-
-                city = address.get(
-                    "addressLocality",
-                    ""
-                )
-
-                region = address.get(
-                    "addressRegion",
-                    ""
-                )
-
-                country = address.get(
-                    "addressCountry",
-                    ""
-                )
-
-                if isinstance(
-                    country,
-                    dict
-                ):
-
-                    country = country.get(
-                        "name",
-                        ""
-                    )
-
-                pieces = []
-
-                if city:
-                    pieces.append(
-                        str(city)
-                    )
-
-                if region:
-                    pieces.append(
-                        str(region)
-                    )
-
-                if country:
-                    pieces.append(
-                        str(country)
-                    )
-
-                location_text = ", ".join(
-                    pieces
-                )
-
-                if (
-                    location_text
-                    and location_text not in location_parts
-                ):
-
-                    location_parts.append(
-                        location_text
-                    )
-
-            details["location"] = " / ".join(
-                location_parts
             )
 
-            return details
+            description_html = (
+                posting.get(
+                    "description",
+                    ""
+                )
+            )
+
+            description_soup = (
+                BeautifulSoup(
+                    description_html,
+                    "html.parser"
+                )
+            )
+
+            result[
+                "description_text"
+            ] = clean_text(
+                description_soup.get_text(
+                    " ",
+                    strip=True
+                )
+            )
+
+            sections = (
+                extract_description_sections(
+                    description_html
+                )
+            )
+
+            result.update(
+                sections
+            )
+
+            return result
 
     except Exception as e:
 
         print(
-            "Could not read job details:"
+            "Job detail error:",
+            e
         )
 
-        print(e)
+    return result
 
-    return details
+
+# ============================================================
+# TELEGRAM FORMATTING
+# ============================================================
+
+def bullet_section(
+    title,
+    items
+):
+
+    if not items:
+
+        return ""
+
+    text = (
+        f"\n{title}\n"
+    )
+
+    for item in items:
+
+        text += (
+            f"• {item}\n"
+        )
+
+    return text
+
+
+def build_telegram_message(
+    job,
+    details,
+    score,
+    matched,
+    location_status,
+    required_years,
+    experience_status
+):
+
+    date_posted = (
+        details[
+            "date_posted"
+        ]
+        or "Not detected"
+    )
+
+    employment = (
+        details[
+            "employment_type"
+        ]
+        or "Not detected"
+    )
+
+    location = (
+        details[
+            "location"
+        ]
+        or location_status
+    )
+
+    if required_years is None:
+
+        exp_requirement = (
+            "Not explicitly stated"
+        )
+
+    else:
+
+        exp_requirement = (
+            f"{required_years}+ years"
+        )
+
+    message = (
+        "🚨 NEW BMW JOB\n\n"
+
+        f"💼 {job['title']}\n"
+
+        "🏢 BMW Group\n"
+
+        f"📍 {location}\n"
+
+        f"🏠 Location fit: "
+        f"{location_status}\n"
+
+        f"📅 Posted: "
+        f"{date_posted}\n"
+
+        f"🧑‍💼 Type: "
+        f"{employment}\n\n"
+
+        f"🎯 Match score: "
+        f"{score}\n"
+
+        f"✅ Matching areas: "
+        f"{', '.join(matched)}\n\n"
+
+        "⏳ EXPERIENCE\n"
+
+        f"• Arash: ~"
+        f"{ARASH_EXPERIENCE_YEARS:g} years professional experience\n"
+
+        f"• Job asks: "
+        f"{exp_requirement}\n"
+
+        f"• Assessment: "
+        f"{experience_status}\n"
+    )
+
+    message += bullet_section(
+        "📌 RESPONSIBILITIES",
+        details[
+            "tasks"
+        ]
+    )
+
+    message += bullet_section(
+        "🎓 REQUIREMENTS",
+        details[
+            "requirements"
+        ]
+    )
+
+    message += bullet_section(
+        "🎁 BENEFITS / OTHER INFO",
+        details[
+            "benefits"
+        ]
+    )
+
+    # If BMW's page doesn't use recognizable section headings,
+    # preserve remaining details instead of losing them.
+    if (
+        not details[
+            "tasks"
+        ]
+        and not details[
+            "requirements"
+        ]
+    ):
+
+        message += bullet_section(
+            "📄 JOB DETAILS",
+            details[
+                "other"
+            ]
+        )
+
+    message += (
+        "\n🔗 APPLY / FULL JOB\n"
+        f"{job['url']}"
+    )
+
+    return message
 
 
 # ============================================================
@@ -719,136 +1443,160 @@ def get_job_details(job_url):
 
 print()
 print("=" * 70)
-print("ARASH JOB RADAR - BMW")
+print("ARASH JOB RADAR - BMW ADVANCED")
 print("=" * 70)
-
-
-# Check whether this is the first ever run
-first_run = not os.path.exists(SEEN_FILE)
-
 
 jobs = get_bmw_jobs()
 
-
 print()
-print("=" * 70)
-
 print(
-    "TOTAL UNIQUE BMW JOBS READ:",
+    "TOTAL BMW JOBS READ:",
     len(jobs)
 )
 
-print("=" * 70)
-
-
 seen_jobs = load_seen_jobs()
-
-
-# ============================================================
-# FIRST RUN
-# ============================================================
-
-if first_run:
-
-    print()
-    print("FIRST RUN")
-    print(
-        "Saving current BMW jobs as baseline."
-    )
-    print(
-        "No Telegram alerts will be sent."
-    )
-
-    for job in jobs:
-
-        seen_jobs.add(
-            job["url"]
-        )
-
-    save_seen_jobs(
-        seen_jobs
-    )
-
-    print()
-    print(
-        "Baseline saved:",
-        len(seen_jobs),
-        "jobs"
-    )
-
-    print()
-    print("=" * 70)
-    print("BMW scan finished.")
-    print("=" * 70)
-
-    raise SystemExit
-
-
-# ============================================================
-# FIND NEW JOBS
-# ============================================================
 
 new_jobs = []
 
-
 for job in jobs:
 
-    if job["url"] not in seen_jobs:
+    if (
+        job["url"]
+        not in seen_jobs
+    ):
 
         new_jobs.append(
             job
         )
 
+        # Mark as seen even if later rejected.
         seen_jobs.add(
             job["url"]
         )
 
-
 print()
 print(
-    "New BMW jobs detected:",
+    "NEW BMW JOBS:",
     len(new_jobs)
 )
 
-
 sent_count = 0
 
-
-# ============================================================
-# ANALYZE NEW JOBS
-# ============================================================
-
 for job in new_jobs:
-
-    title = job["title"]
-    job_url = job["url"]
 
     print()
     print("-" * 70)
 
-    print("NEW JOB:")
-    print(title)
+    print(
+        "Checking:",
+        job["title"]
+    )
 
-
-    # --------------------------------------------------------
-    # EXCLUSION
-    # --------------------------------------------------------
-
-    if is_excluded(title):
+    if is_excluded(
+        job["title"]
+    ):
 
         print(
-            "EXCLUDED -> internship / student / apprenticeship"
+            "Rejected: student/internship/apprenticeship"
         )
 
         continue
 
+    details = get_job_details(
+        job["url"]
+    )
+
+    full_text = (
+        job["title"]
+        + " "
+        + details[
+            "description_text"
+        ]
+    )
+
+    if is_excluded(
+        full_text
+    ):
+
+        print(
+            "Rejected by description."
+        )
+
+        continue
 
     # --------------------------------------------------------
-    # MATCH SCORE
+    # NEWNESS
     # --------------------------------------------------------
 
-    score, matches = calculate_match(
-        title
+    age = job_age_days(
+        details[
+            "date_posted"
+        ]
+    )
+
+    if (
+        age is not None
+        and age
+        > MAX_JOB_AGE_DAYS
+    ):
+
+        print(
+            f"Rejected: {age} days old."
+        )
+
+        continue
+
+    # --------------------------------------------------------
+    # LOCATION
+    # --------------------------------------------------------
+
+    location_ok, location_status = (
+        location_match(
+            details[
+                "location"
+            ],
+            full_text
+        )
+    )
+
+    if not location_ok:
+
+        print(
+            "Rejected:",
+            location_status,
+            details[
+                "location"
+            ]
+        )
+
+        continue
+
+    # --------------------------------------------------------
+    # EXPERIENCE
+    # --------------------------------------------------------
+
+    required_years = (
+        extract_experience_years(
+            full_text
+        )
+    )
+
+    experience_status, exp_adjust = (
+        experience_fit(
+            required_years
+        )
+    )
+
+    # --------------------------------------------------------
+    # SCORE
+    # --------------------------------------------------------
+
+    score, matched = (
+        calculate_match(
+            job["title"],
+            full_text,
+            exp_adjust
+        )
     )
 
     print(
@@ -856,122 +1604,67 @@ for job in new_jobs:
         score
     )
 
-    if matches:
-
-        print(
-            "Matched:",
-            ", ".join(matches)
-        )
-
-
-    # --------------------------------------------------------
-    # IGNORE LOW SCORE JOB
-    # --------------------------------------------------------
+    print(
+        "Experience:",
+        experience_status
+    )
 
     if score < MIN_MATCH_SCORE:
 
         print(
-            "Score too low -> ignored"
+            "Rejected: score too low."
         )
 
         continue
 
+    # Very senior jobs need an exceptionally strong skill match.
+    if (
+        experience_status
+        == "Too senior"
+        and score < 80
+    ):
 
-    # --------------------------------------------------------
-    # LOAD DETAILS
-    # --------------------------------------------------------
+        print(
+            "Rejected: too senior."
+        )
 
-    print(
-        "Relevant job -> reading details..."
-    )
-
-    details = get_job_details(
-        job_url
-    )
-
-
-    location = (
-        details["location"]
-        or "Location not detected"
-    )
-
-    date_posted = (
-        details["date_posted"]
-        or "Not detected"
-    )
-
-    employment_type = (
-        details["employment_type"]
-        or "Not detected"
-    )
-
-
-    matched_text = ", ".join(
-        matches
-    )
-
-
-    # --------------------------------------------------------
-    # TELEGRAM MESSAGE
-    # --------------------------------------------------------
+        continue
 
     message = (
-        "🚨 NEW BMW JOB\n\n"
-
-        f"💼 {title}\n\n"
-
-        "🏢 BMW Group\n"
-
-        f"📍 {location}\n"
-
-        f"📅 Posted: {date_posted}\n"
-
-        f"🧑‍💼 Type: {employment_type}\n\n"
-
-        f"🎯 Match score: {score}\n"
-
-        f"✅ Match: {matched_text}\n\n"
-
-        f"🔗 {job_url}\n\n"
-
-        "#BMW #Automotive #JobRadar"
+        build_telegram_message(
+            job,
+            details,
+            score,
+            matched,
+            location_status,
+            required_years,
+            experience_status
+        )
     )
-
 
     print(
-        "MATCH -> Sending Telegram alert"
+        "MATCH -> Telegram"
     )
 
-
-    send_telegram(
+    send_long_telegram(
         message
     )
 
-
     sent_count += 1
 
-
-# ============================================================
-# SAVE DATABASE
-# ============================================================
 
 save_seen_jobs(
     seen_jobs
 )
 
-
 print()
 print("=" * 70)
 
 print(
-    "Relevant new jobs sent:",
+    "Relevant jobs sent:",
     sent_count
 )
 
 print("=" * 70)
-
-print(
-    "BMW scan finished."
-)
-
+print("BMW scan finished.")
 print("=" * 70)
