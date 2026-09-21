@@ -1,223 +1,445 @@
 # ============================================================
 # ARASH PROFESSIONAL PROFILE
-# Temporary profile until the updated CV is available
+# Based on latest CV - 2026
 # ============================================================
 
-ARASH_EXPERIENCE_YEARS = 2.0
+ARASH_EXPERIENCE_YEARS = 2.5
 
 CURRENT_LOCATION = "Munich, Germany"
 
 CURRENT_COMPANY = "ARRK Engineering GmbH"
 
-EDUCATION = [
-    "Deggendorf Institute of Technology"
-]
+CURRENT_ROLE = (
+    "Development Engineer - "
+    "System Function Owner, USRR (ADAS)"
+)
 
 LANGUAGES = {
-    "english": "fluent",
-    "german": "good working knowledge",
+    "persian": "native",
+    "english": "B2",
+    "german": "B1",
 }
 
-LINKEDIN_CERTIFICATIONS = [
-    "Advanced Python",
-    "Python Data Analysis",
-    "Advanced Python: Working with Databases",
-    "Using Python with Excel",
-    "Programming Foundations: Object-Oriented Design",
-]
 
-
-# ------------------------------------------------------------
+# ============================================================
 # ACCEPTED LOCATIONS
-# Munich + surrounding area
-# ------------------------------------------------------------
+#
+# Munich + surrounding commuter area
+# Used by BMW, LinkedIn and future job sources
+# ============================================================
+
 MUNICH_AREA = [
-    # Munich
+
+    # --------------------------------------------------------
+    # Munich itself
+    # --------------------------------------------------------
+
     "münchen",
     "munich",
+    "greater munich metropolitan area",
+    "metropolregion münchen",
 
+
+    # --------------------------------------------------------
     # North / North-East
+    # --------------------------------------------------------
+
     "garching",
+    "garching bei münchen",
+
+    "unterföhring",
+
+    "ismaning",
+
     "eching",
+
+    "neufahrn",
+    "neufahrn bei freising",
+
     "unterschleißheim",
     "oberschleißheim",
-    "ismaning",
+
     "hallbergmoos",
-    "neufahrn",
+
     "freising",
+
     "erding",
 
-    # East
-    "asheim",
+
+    # --------------------------------------------------------
+    # East / North-East
+    # --------------------------------------------------------
+
     "aschheim",
+
     "feldkirchen",
+
     "kirchheim",
+    "kirchheim bei münchen",
+
     "poing",
+
     "haar",
+
     "vaterstetten",
+
     "markt schwaben",
 
+    "ebersberg",
+
+
+    # --------------------------------------------------------
     # South / South-East
+    # --------------------------------------------------------
+
     "ottobrunn",
+
     "unterhaching",
+
     "taufkirchen",
+
     "neubiberg",
+
     "hohenbrunn",
+
     "brunnthal",
+
+    "oberhaching",
+
     "pullach",
+    "pullach im isartal",
+
     "grünwald",
 
+
+    # --------------------------------------------------------
     # West / North-West
+    # --------------------------------------------------------
+
     "dachau",
+
     "karlsfeld",
+
     "fürstenfeldbruck",
+
     "germering",
+
     "puchheim",
+
     "olching",
+
     "gröbenzell",
+
     "maisach",
 
+
+    # --------------------------------------------------------
     # South-West
+    # --------------------------------------------------------
+
     "gräfelfing",
+
     "planegg",
+
     "krailling",
+
     "gauting",
+
     "starnberg",
 ]
 
 
-# ------------------------------------------------------------
+# ============================================================
 # REMOTE JOBS
-# ------------------------------------------------------------
+#
+# Remote is accepted only when the job can be performed
+# from Germany.
+# ============================================================
+
 REMOTE_WORDS = [
     "remote",
     "fully remote",
     "100% remote",
-    "home office",
-    "homeoffice",
-    "work from home",
+
     "remote germany",
     "remote within germany",
+    "remote in germany",
+
+    "home office",
+    "homeoffice",
+
+    "work from home",
+    "working from home",
+
+    "mobiles arbeiten",
+    "mobile arbeit",
 ]
 
-# ------------------------------------------------------------
+
+# ============================================================
 # HARD EXCLUSIONS
-# ------------------------------------------------------------
+#
+# Arash is looking for professional full-time positions.
+# ============================================================
 
 EXCLUDE_WORDS = [
+
+    # Internship
     "praktikant",
+    "praktikantin",
     "praktikum",
+    "internship",
+
+    # Working student
     "werkstudent",
     "werkstudentin",
+    "working student",
+
+    # Apprenticeships
     "azubi",
     "auszubild",
     "ausbildung",
+    "apprenticeship",
+
+    # Student programs
     "duales studium",
     "dualer student",
+    "dual student",
+
+    # Thesis / academic jobs
     "studienabschlussarbeit",
     "abschlussarbeit",
     "masterarbeit",
     "bachelorarbeit",
     "thesis",
+
+    # PhD
     "doktorand",
     "promotion",
+    "phd position",
+
+    # Other junior programs
     "trainee",
+
+    # School internship
     "schülerpraktik",
 ]
 
 
-# ------------------------------------------------------------
-# SKILL WEIGHTS
-# Higher score = more relevant for Arash
-# ------------------------------------------------------------
+# ============================================================
+# SKILLS
+#
+# Used by BMW matcher.
+# LinkedIn V4 has its own more detailed core/support weights.
+# ============================================================
 
 SKILLS = {
 
-    # Very strong automotive/testing skills
+    # --------------------------------------------------------
+    # Strongest direct experience
+    # --------------------------------------------------------
+
+    "ecu-test": 22,
+    "ecu test": 22,
+
     "canoe": 20,
-    "capl": 20,
+
     "uds": 20,
+
+    "can fd": 20,
+    "can-fd": 20,
 
     "diagnostic": 18,
     "diagnostics": 18,
     "diagnose": 18,
 
+    "dtc": 18,
+    "did": 18,
+
+    "system testing": 20,
+    "system test": 20,
+
+    "system integration testing": 22,
+    "integration testing": 20,
+
+    "requirements-based testing": 18,
+
+    "regression testing": 16,
+
+    "root cause": 14,
+    "root-cause": 14,
+
+
+    # --------------------------------------------------------
+    # ADAS / Radar
+    # --------------------------------------------------------
+
+    "adas": 18,
+
+    "radar": 18,
+
+    "usrr": 22,
+
+    "mrr": 14,
+    "srr": 14,
+
+
+    # --------------------------------------------------------
+    # Automotive communication
+    # --------------------------------------------------------
+
+    "automotive ethernet": 18,
+
+    "doip": 18,
+
+    "some/ip": 16,
+
+    "dlt": 14,
+
+    "can bus": 14,
+
+
+    # --------------------------------------------------------
+    # Integration
+    # --------------------------------------------------------
+
     "integration": 18,
-    "testing": 18,
-    "test engineer": 18,
-    "testingenieur": 18,
+
+    "vehicle integration": 18,
+    "fahrzeugintegration": 18,
 
     "ecu": 16,
     "steuergerät": 16,
 
-    "can fd": 16,
-    "can-fd": 16,
-    "can bus": 14,
+
+    # --------------------------------------------------------
+    # Test environments
+    # --------------------------------------------------------
 
     "hil": 16,
     "sil": 16,
 
-    # Python is now weighted higher
-    "python": 18,
-    "python automation": 18,
-    "scripting": 10,
-
     "validation": 14,
     "verification": 14,
 
-    "automotive ethernet": 14,
-    "ethernet": 10,
 
-    "radar": 14,
-    "adas": 14,
+    # --------------------------------------------------------
+    # Programming / automation
+    # --------------------------------------------------------
 
-    "embedded": 12,
+    "python": 16,
+
+    "python automation": 18,
 
     "test automation": 18,
     "testautomatisierung": 18,
+
+    "automation": 10,
     "automatisierung": 10,
 
-    "software testing": 14,
+    "scripting": 10,
 
-    "fahrzeugintegration": 14,
-    "vehicle integration": 14,
 
-    "e/e": 10,
+    # CAPL and C++ are BASIC in the current CV
+    "capl": 5,
+    "c++": 2,
 
-    # Supporting Python/Data skills from LinkedIn
-    "object oriented": 8,
-    "object-oriented": 8,
-    "oop": 8,
-    "database": 7,
-    "databases": 7,
-    "sql": 7,
-    "data analysis": 6,
-    "excel": 3,
 
-    # General words have low weight
-    "software": 6,
+    # --------------------------------------------------------
+    # Tools actually present in CV
+    # --------------------------------------------------------
+
+    "carmen": 10,
+
+    "wireshark": 8,
+
+    "zedis": 10,
+
+    "e-sys": 10,
+    "esys": 10,
+
+    "ediabas": 8,
+
+    "codebeamer": 8,
+
+    "octane": 8,
+
+    "jira": 6,
+
+    "confluence": 5,
+
+    "github": 6,
+
+
+    # --------------------------------------------------------
+    # General terms - intentionally low weight
+    # --------------------------------------------------------
+
+    "software": 5,
+
+    "automotive": 5,
+
     "fahrzeug": 4,
     "vehicle": 4,
+
+    "embedded": 7,
+
+    "e/e": 8,
 }
 
 
-# ------------------------------------------------------------
-# ROLE WORDS
-# ------------------------------------------------------------
+# ============================================================
+# PREFERRED ROLE WORDS
+# ============================================================
 
 GOOD_ROLE_WORDS = [
-    "entwicklungsingenieur",
-    "development engineer",
+
+    # Test
+    "automotive test engineer",
     "test engineer",
     "testingenieur",
+
+    "system test engineer",
+    "system test",
+
+    "software test engineer",
+    "software testing",
+
+    # Integration
+    "system integration engineer",
     "integration engineer",
     "integrationsingenieur",
+
+    "vehicle integration engineer",
+    "fahrzeugintegration",
+
+    # Diagnostics
+    "diagnostics engineer",
+    "diagnostic engineer",
+    "diagnose",
+
+    # Validation
     "validation engineer",
+    "verification engineer",
+
+    # HIL / SIL
+    "hil test engineer",
+    "sil test engineer",
+
+    # ADAS
+    "adas test engineer",
+    "adas engineer",
+
+    "radar test engineer",
+
+    # Automation
+    "test automation engineer",
+
+    # Development
+    "entwicklungsingenieur",
+    "development engineer",
+
+    # Systems
     "system engineer",
     "systemingenieur",
-    "diagnostic",
-    "diagnose",
-    "software test",
-    "test automation",
-    "verification",
 ]
