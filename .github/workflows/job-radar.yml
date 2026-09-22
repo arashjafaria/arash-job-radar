@@ -4,26 +4,28 @@ on:
   workflow_dispatch:
 
   schedule:
+    # BMW at minutes 2, 7, 12, 17...
+    # LinkedIn runs separately at 0, 5, 10, 15...
     - cron: "2-59/5 * * * *"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: arash-job-radar
+  group: arash-bmw-job-radar
   cancel-in-progress: false
 
 jobs:
   check-bmw-jobs:
-
     runs-on: ubuntu-latest
 
     env:
       BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       CHAT_ID: ${{ secrets.CHAT_ID }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -41,18 +43,6 @@ jobs:
         run: |
           python -m playwright install --with-deps chromium
 
-      - name: Run BMW Job Radar
+      - name: Run BMW Job Radar with Supabase
         run: |
-          python bmw_monitor.py
-
-      - name: Save Job Radar memory
-        run: |
-          if git diff --quiet bmw_seen_jobs.json; then
-            echo "No job database changes."
-          else
-            git config user.name "Arash Job Radar"
-            git config user.email "actions@github.com"
-            git add bmw_seen_jobs.json
-            git commit -m "Update BMW job memory"
-            git push
-          fi
+          python bmw_supabase_runner.py
