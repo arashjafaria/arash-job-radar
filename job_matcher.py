@@ -173,6 +173,11 @@ DOMAIN_DISTANCE_TERMS = [
     "vibration",
     "shock",
     "thermal",
+    "aerospace",
+    "space",
+    "breadboard",
+    "engineering model",
+    "development hardware",
 ]
 
 TECHNICAL_MARKERS = [
@@ -700,13 +705,25 @@ def evaluate_requirement_phrase(text):
         DIRECT_ACTIVITY_TERMS,
         low,
     ):
+        if _any_term(
+            DOMAIN_DISTANCE_TERMS,
+            low,
+        ):
+            direct_score = 70
+            direct_reason = (
+                "Direct activity match, but in a substantially different domain"
+            )
+        else:
+            direct_score = 100
+            direct_reason = "Directly supported by current CV responsibilities"
+
         return {
             "text": phrase,
-            "score": 100,
+            "score": direct_score,
             "weight": 4.0,
             "category": "core-activity",
             "core": True,
-            "reason": "Directly supported by current CV responsibilities",
+            "reason": direct_reason,
         }
 
     if _any_term(
