@@ -270,8 +270,13 @@ def _term_present(term, text):
 
 
 def _any_term(terms, text):
-    low = (text or "").lower()
-    return any(term in low for term in terms)
+    return any(
+        _term_present(
+            term,
+            text,
+        )
+        for term in terms
+    )
 
 
 def _skill_aliases(skill):
@@ -1404,9 +1409,25 @@ def location_status(
         "keine homeoffice",
     ]
 
+    # Outside the accepted onsite radius, only genuinely remote
+    # Germany roles are accepted. Generic "home office" / hybrid
+    # wording is not enough because the user does not want recurring
+    # onsite travel beyond the accepted area.
+    strict_remote_terms = [
+        "fully remote",
+        "100% remote",
+        "remote germany",
+        "remote within germany",
+        "remote in germany",
+        "deutschlandweit remote",
+        "bundesweit remote",
+        "work from home",
+        "working from home",
+    ]
+
     remote_found = any(
-        word.lower() in full
-        for word in REMOTE_WORDS
+        term in full
+        for term in strict_remote_terms
     )
 
     germany_context = any(
@@ -1428,7 +1449,7 @@ def location_status(
     ):
         return (
             True,
-            "Remote Germany",
+            "Fully remote in Germany",
         )
 
     return (
