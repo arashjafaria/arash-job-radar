@@ -1754,11 +1754,13 @@ for job in new_jobs:
         ],
     )
 
+    # German B2/C1/C2 is a warning only.
+    # Native German remains a hard rejection above.
     score = max(
         0,
         min(
             100,
-            score + german_adjustment
+            score
         )
     )
 
