@@ -2070,10 +2070,53 @@ def build_message(
 
         text += (
             f"• Requirements: {breakdown.get('requirements', 0)}%\n"
-            f"• Technology: {breakdown.get('technology', 0)}%\n"
+            f"• Core requirements: {breakdown.get('core_requirements', 0)}%\n"
             f"• Responsibilities: {breakdown.get('responsibilities', 0)}%\n"
             f"• Role: {breakdown.get('role', 0)}%\n"
         )
+
+        requirement_details = breakdown.get(
+            "requirement_details",
+            []
+        )
+
+        if requirement_details:
+
+            direct = [
+                item
+                for item in requirement_details
+                if item.get("score", 0) >= 70
+                and item.get("weight", 0) > 0
+            ]
+
+            weak = [
+                item
+                for item in requirement_details
+                if item.get("score", 0) < 70
+                and item.get("weight", 0) > 0
+            ]
+
+            if direct:
+
+                text += "\n✅ REQUIREMENTS SUPPORTED\n"
+
+                for item in direct[:8]:
+
+                    text += (
+                        f"• {item['score']}% — "
+                        f"{item['text']}\n"
+                    )
+
+            if weak:
+
+                text += "\n❌ REQUIREMENT GAPS\n"
+
+                for item in weak[:8]:
+
+                    text += (
+                        f"• {item['score']}% — "
+                        f"{item['text']}\n"
+                    )
 
     text += "\n✅ MATCHED SKILLS\n"
 
@@ -2722,6 +2765,31 @@ def main():
         # ----------------------------------------------------
         # SCORE
         # ----------------------------------------------------
+
+        if not breakdown.get(
+            "gates_pass",
+            False
+        ):
+
+            print(
+                "Rejected by requirement gates:",
+                f"requirements={breakdown.get('requirements', 0)}%",
+                f"core={breakdown.get('core_requirements', 0)}%",
+                f"overall={score}%"
+            )
+
+
+            if remember_job(
+                job,
+                "rejected_requirements",
+                score
+            ):
+
+                stored += 1
+
+
+            continue
+
 
         if score < MIN_MATCH_SCORE:
 
