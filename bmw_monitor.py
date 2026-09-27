@@ -1789,6 +1789,20 @@ for job in new_jobs:
         experience_status
     )
 
+    if not breakdown.get(
+        "gates_pass",
+        False
+    ):
+
+        print(
+            "Rejected by requirement gates:",
+            f"requirements={breakdown.get('requirements', 0)}%",
+            f"core={breakdown.get('core_requirements', 0)}%",
+            f"overall={score}%"
+        )
+
+        continue
+
     if score < MIN_MATCH_SCORE:
 
         print(
