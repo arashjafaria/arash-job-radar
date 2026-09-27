@@ -18,6 +18,19 @@ from profile import (
     EXCLUDE_WORDS,
     SKILLS,
     GOOD_ROLE_WORDS,
+    MIN_MATCH_PERCENT,
+    SENIOR_MIN_MATCH_PERCENT,
+)
+
+from job_matcher import (
+    evaluate_fit as cv_evaluate_fit,
+    extract_experience_years as cv_extract_experience_years,
+    experience_status as cv_experience_status,
+    german_requirement as cv_german_requirement,
+    contract_status as cv_contract_status,
+    location_status as cv_location_status,
+    is_senior_title as cv_is_senior_title,
+    security_warnings as cv_security_warnings,
 )
 
 
@@ -50,7 +63,7 @@ PAGES_TO_SCAN = 5
 
 MAX_JOB_AGE_DAYS = 3
 
-MIN_MATCH_SCORE = 35
+MIN_MATCH_SCORE = MIN_MATCH_PERCENT
 
 TELEGRAM_MAX = 3900
 
@@ -1318,7 +1331,11 @@ def build_telegram_message(
     matched,
     location_status,
     required_years,
-    experience_status
+    experience_status,
+    german_status,
+    employment_status,
+    warnings=None,
+    breakdown=None,
 ):
 
     date_posted = (
@@ -1372,11 +1389,24 @@ def build_telegram_message(
         f"🧑‍💼 Type: "
         f"{employment}\n\n"
 
-        f"🎯 Match score: "
-        f"{score}\n"
+        f"🎯 CV match: "
+        f"{score}%\n"
 
         f"✅ Matching areas: "
-        f"{', '.join(matched)}\n\n"
+        f"{', '.join(matched) if matched else 'Role/responsibility fit'}\n"
+    )
+
+    if breakdown:
+
+        message += (
+            f"• Requirements: {breakdown.get('requirements', 0)}%\n"
+            f"• Technology: {breakdown.get('technology', 0)}%\n"
+            f"• Responsibilities: {breakdown.get('responsibilities', 0)}%\n"
+            f"• Role: {breakdown.get('role', 0)}%\n"
+        )
+
+    message += (
+        "\n"
 
         "⏳ EXPERIENCE\n"
 
@@ -1387,8 +1417,20 @@ def build_telegram_message(
         f"{exp_requirement}\n"
 
         f"• Assessment: "
-        f"{experience_status}\n"
+        f"{experience_status}\n\n"
+
+        "🌐 LANGUAGE / CONTRACT\n"
+        f"• German: {german_status}\n"
+        f"• Contract: {employment_status}\n"
     )
+
+    if warnings:
+
+        message += "\n⚠️ WARNINGS\n"
+
+        for warning in warnings:
+
+            message += f"• {warning}\n"
 
     message += bullet_section(
         "📌 RESPONSIBILITIES",
@@ -1443,7 +1485,7 @@ def build_telegram_message(
 
 print()
 print("=" * 70)
-print("ARASH JOB RADAR - BMW ADVANCED")
+print("ARASH JOB RADAR - BMW CV MATCHER")
 print("=" * 70)
 
 jobs = get_bmw_jobs()
@@ -1551,7 +1593,7 @@ for job in new_jobs:
     # --------------------------------------------------------
 
     location_ok, location_status = (
-        location_match(
+        cv_location_status(
             details[
                 "location"
             ],
@@ -1576,26 +1618,118 @@ for job in new_jobs:
     # --------------------------------------------------------
 
     required_years = (
-        extract_experience_years(
+        cv_extract_experience_years(
             full_text
         )
     )
 
-    experience_status, exp_adjust = (
-        experience_fit(
+    reject_experience, experience_status = (
+        cv_experience_status(
             required_years
         )
     )
 
+    if reject_experience:
+
+        print(
+            "Rejected experience:",
+            experience_status
+        )
+
+        continue
+
     # --------------------------------------------------------
-    # SCORE
+    # CONTRACT
     # --------------------------------------------------------
 
-    score, matched = (
-        calculate_match(
-            job["title"],
-            full_text,
-            exp_adjust
+    reject_contract, employment_status = (
+        cv_contract_status(
+            {
+                "employment type":
+                    details[
+                        "employment_type"
+                    ]
+            },
+            details[
+                "description_text"
+            ],
+        )
+    )
+
+    if reject_contract:
+
+        print(
+            "Rejected contract:",
+            employment_status
+        )
+
+        continue
+
+    # --------------------------------------------------------
+    # LANGUAGE
+    # --------------------------------------------------------
+
+    (
+        reject_language,
+        german_status,
+        german_adjustment,
+    ) = cv_german_requirement(
+        full_text
+    )
+
+    if reject_language:
+
+        print(
+            "Rejected language:",
+            german_status
+        )
+
+        continue
+
+    # --------------------------------------------------------
+    # CV MATCH
+    # --------------------------------------------------------
+
+    (
+        score,
+        matched,
+        skill_warnings,
+        breakdown,
+    ) = cv_evaluate_fit(
+        job["title"],
+        details[
+            "description_text"
+        ],
+        details[
+            "requirements"
+        ],
+        details[
+            "tasks"
+        ],
+    )
+
+    score = max(
+        0,
+        min(
+            100,
+            score + german_adjustment
+        )
+    )
+
+    warnings = []
+
+    if german_status.startswith("⚠️"):
+        warnings.append(
+            german_status
+        )
+
+    warnings.extend(
+        skill_warnings
+    )
+
+    warnings.extend(
+        cv_security_warnings(
+            full_text
         )
     )
 
@@ -1617,15 +1751,18 @@ for job in new_jobs:
 
         continue
 
-    # Very senior jobs need an exceptionally strong skill match.
+    # Senior/lead titles are kept only for a very strong CV fit.
     if (
-        experience_status
-        == "Too senior"
-        and score < 80
+        cv_is_senior_title(
+            job["title"]
+        )
+        and score
+        < SENIOR_MIN_MATCH_PERCENT
     ):
 
         print(
-            "Rejected: too senior."
+            "Rejected: senior/lead title below "
+            f"{SENIOR_MIN_MATCH_PERCENT}% fit."
         )
 
         continue
@@ -1638,7 +1775,11 @@ for job in new_jobs:
             matched,
             location_status,
             required_years,
-            experience_status
+            experience_status,
+            german_status,
+            employment_status,
+            warnings,
+            breakdown,
         )
     )
 
