@@ -6,6 +6,7 @@ from profile import (
     MIN_MATCH_PERCENT,
     SENIOR_MIN_MATCH_PERCENT,
     MUNICH_AREA,
+    SPECIAL_ONSITE_EXCEPTIONS,
     REMOTE_WORDS,
     SKILL_LEVELS,
     SKILL_ALIASES,
@@ -404,6 +405,10 @@ def location_status(location, description):
     for city in MUNICH_AREA:
         if city in location_low:
             return True, "Onsite/hybrid within accepted Munich ~150 km area"
+
+    for city in SPECIAL_ONSITE_EXCEPTIONS:
+        if city in location_low:
+            return True, "Accepted onsite exception: Nuremberg"
 
     negative_remote = [
         "no remote", "not remote", "kein remote",
