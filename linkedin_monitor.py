@@ -11,6 +11,7 @@ from config import BOT_TOKEN, CHAT_ID
 from profile import (
     ARASH_EXPERIENCE_YEARS,
     MUNICH_AREA,
+    SPECIAL_ONSITE_EXCEPTIONS,
     REMOTE_WORDS,
     EXCLUDE_WORDS,
     MIN_MATCH_PERCENT,
@@ -789,7 +790,17 @@ def location_precheck(
 
             return (
                 True,
-                "Munich area"
+                "Munich / accepted ~150 km area"
+            )
+
+
+    for city in SPECIAL_ONSITE_EXCEPTIONS:
+
+        if city.lower() in low:
+
+            return (
+                True,
+                "Accepted onsite exception"
             )
 
 
@@ -2710,11 +2721,13 @@ def main():
             ),
         )
 
+        # German B2/C1/C2 is a warning only.
+        # Native German remains a hard rejection above.
         score = max(
             0,
             min(
                 100,
-                score + german_adjustment
+                score
             )
         )
 
