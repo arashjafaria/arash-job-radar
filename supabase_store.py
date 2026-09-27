@@ -1,3 +1,5 @@
+import time
+
 import requests
 
 from config import (
@@ -19,6 +21,17 @@ HEADERS = {
 }
 
 
+RETRYABLE_STATUS = {
+    429,
+    500,
+    502,
+    503,
+    504,
+}
+
+MAX_ATTEMPTS = 3
+
+
 def _check_config():
 
     if not SUPABASE_URL:
@@ -32,6 +45,74 @@ def _check_config():
         )
 
 
+def _request(
+    method,
+    *,
+    headers=None,
+    params=None,
+    json=None,
+    timeout=20,
+):
+
+    last_error = None
+
+    for attempt in range(
+        1,
+        MAX_ATTEMPTS + 1
+    ):
+
+        try:
+
+            response = requests.request(
+                method,
+                API_URL,
+                headers=headers or HEADERS,
+                params=params,
+                json=json,
+                timeout=timeout,
+            )
+
+            if (
+                response.status_code
+                not in RETRYABLE_STATUS
+            ):
+                return response
+
+            last_error = RuntimeError(
+                "Supabase temporary HTTP "
+                f"{response.status_code}: "
+                f"{response.text[:300]}"
+            )
+
+        except requests.RequestException as exc:
+
+            last_error = exc
+
+
+        if attempt < MAX_ATTEMPTS:
+
+            wait_seconds = (
+                2 ** attempt
+            )
+
+            print(
+                "Supabase temporary failure. "
+                f"Retry {attempt + 1}/{MAX_ATTEMPTS} "
+                f"in {wait_seconds}s..."
+            )
+
+            time.sleep(
+                wait_seconds
+            )
+
+
+    raise RuntimeError(
+        "Supabase request failed after "
+        f"{MAX_ATTEMPTS} attempts: "
+        f"{last_error}"
+    )
+
+
 # ============================================================
 # CHECK IF JOB WAS ALREADY SEEN
 # ============================================================
@@ -43,16 +124,14 @@ def job_exists(
 
     _check_config()
 
-    response = requests.get(
-        API_URL,
-        headers=HEADERS,
+    response = _request(
+        "GET",
         params={
             "select": "id",
             "source": f"eq.{source}",
             "job_id": f"eq.{job_id}",
             "limit": "1",
         },
-        timeout=20,
     )
 
 
@@ -109,11 +188,10 @@ def save_job(
     }
 
 
-    response = requests.post(
-        API_URL,
+    response = _request(
+        "POST",
         headers=headers,
         json=data,
-        timeout=20,
     )
 
 
@@ -124,6 +202,8 @@ def save_job(
 
 
     # Duplicate job.
+    # This can also happen when the first POST succeeded
+    # but its response timed out and the retry repeats it.
     if response.status_code == 409:
 
         return False
@@ -179,15 +259,13 @@ def update_job(
         return True
 
 
-    response = requests.patch(
-        API_URL,
-        headers=HEADERS,
+    response = _request(
+        "PATCH",
         params={
             "source": f"eq.{source}",
             "job_id": f"eq.{job_id}",
         },
         json=data,
-        timeout=20,
     )
 
 
@@ -234,11 +312,10 @@ def count_jobs(
         ] = f"eq.{source}"
 
 
-    response = requests.get(
-        API_URL,
+    response = _request(
+        "GET",
         headers=headers,
         params=params,
-        timeout=20,
     )
 
 
