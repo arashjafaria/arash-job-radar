@@ -3,10 +3,6 @@ name: Arash Job Radar
 on:
   workflow_dispatch:
 
-  schedule:
-    # BMW at minutes 2, 7, 12, 17...
-    # LinkedIn runs separately at 0, 5, 10, 15...
-    - cron: "2-59/5 * * * *"
 
 permissions:
   contents: read
