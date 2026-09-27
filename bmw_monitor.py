@@ -1400,7 +1400,7 @@ def build_telegram_message(
 
         message += (
             f"• Requirements: {breakdown.get('requirements', 0)}%\n"
-            f"• Technology: {breakdown.get('technology', 0)}%\n"
+            f"• Core requirements: {breakdown.get('core_requirements', 0)}%\n"
             f"• Responsibilities: {breakdown.get('responsibilities', 0)}%\n"
             f"• Role: {breakdown.get('role', 0)}%\n"
         )
