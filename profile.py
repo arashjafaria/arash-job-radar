@@ -92,6 +92,12 @@ MUNICH_AREA = [
 ]
 
 
+SPECIAL_ONSITE_EXCEPTIONS = [
+    "nürnberg",
+    "nuremberg",
+]
+
+
 REMOTE_WORDS = [
     "remote",
     "fully remote",
