@@ -13,6 +13,19 @@ from profile import (
     MUNICH_AREA,
     REMOTE_WORDS,
     EXCLUDE_WORDS,
+    MIN_MATCH_PERCENT,
+    SENIOR_MIN_MATCH_PERCENT,
+)
+
+from job_matcher import (
+    evaluate_fit as cv_evaluate_fit,
+    extract_experience_years as cv_extract_experience_years,
+    experience_status as cv_experience_status,
+    german_requirement as cv_german_requirement,
+    contract_status as cv_contract_status,
+    location_status as cv_location_status,
+    is_senior_title as cv_is_senior_title,
+    security_warnings as cv_security_warnings,
 )
 
 from supabase_store import (
@@ -22,10 +35,10 @@ from supabase_store import (
 
 
 # ============================================================
-# ARASH JOB RADAR - LINKEDIN V5 + SUPABASE
+# ARASH JOB RADAR - LINKEDIN CV MATCHER + SUPABASE
 # ============================================================
 
-VERSION = "V6 + SUPABASE"
+VERSION = "V7 CV MATCHER + SUPABASE"
 SOURCE = "linkedin"
 
 
@@ -44,12 +57,40 @@ DETAIL_URL = (
 # SEARCH SETTINGS
 # ============================================================
 
-SEARCH_QUERIES = [
-    "Automotive Test Engineer",
-    "System Integration Engineer Automotive",
-    "ECU Test Engineer Automotive",
-    "Automotive Diagnostics Engineer",
-    "ADAS HIL Test Engineer",
+SEARCH_QUERY_GROUPS = [
+    [
+        "Development Engineer",
+        "Entwicklungsingenieur",
+        "Test and Validation Engineer",
+        "Testingenieur",
+        "System Tester",
+    ],
+    [
+        "System Integration Engineer",
+        "Requirements Engineer",
+        "Anforderungsingenieur",
+        "Verification Engineer",
+        "Validation Engineer",
+    ],
+    [
+        "Automotive Test Engineer",
+        "Vehicle Test Engineer",
+        "ADAS Test Engineer",
+        "Radar Test Engineer",
+        "ECU Diagnostics Engineer",
+    ],
+    [
+        "Software Test Engineer",
+        "R&D Engineer",
+        "Forschungs- und Entwicklungsingenieur",
+        "HIL Test Engineer",
+        "System Engineer",
+    ],
+]
+
+SEARCH_QUERIES = SEARCH_QUERY_GROUPS[
+    int(time.time() // 300)
+    % len(SEARCH_QUERY_GROUPS)
 ]
 
 LOCATION_QUERY = "Germany"
@@ -57,7 +98,7 @@ LOCATION_QUERY = "Germany"
 # Last 24 hours
 FRESH_SECONDS = 86400
 
-MIN_MATCH_SCORE = 45
+MIN_MATCH_SCORE = MIN_MATCH_PERCENT
 
 SEARCH_DELAY_SECONDS = 2.5
 DETAIL_DELAY_SECONDS = 2.5
@@ -1988,6 +2029,8 @@ def build_message(
     german_status,
     cpp_status,
     employment_status,
+    warnings=None,
+    breakdown=None,
 ):
 
     if required_years is None:
@@ -2020,17 +2063,32 @@ def build_message(
         f"💼 Employment: "
         f"{employment_status}\n\n"
 
-        f"🎯 MATCH SCORE: {score}\n\n"
-
-        "🔥 CORE MATCHES\n"
+        f"🎯 CV MATCH: {score}%\n"
     )
 
-
-    for item in core_matches:
+    if breakdown:
 
         text += (
-            f"• {item}\n"
+            f"• Requirements: {breakdown.get('requirements', 0)}%\n"
+            f"• Technology: {breakdown.get('technology', 0)}%\n"
+            f"• Responsibilities: {breakdown.get('responsibilities', 0)}%\n"
+            f"• Role: {breakdown.get('role', 0)}%\n"
         )
+
+    text += "\n✅ MATCHED SKILLS\n"
+
+
+    if core_matches:
+
+        for item in core_matches:
+
+            text += (
+                f"• {item}\n"
+            )
+
+    else:
+
+        text += "• No explicit tool keyword; fit comes from role/responsibilities\n"
 
 
     other_matches = [
@@ -2077,6 +2135,15 @@ def build_message(
         f"• C++: "
         f"{cpp_status}\n"
     )
+
+
+    if warnings:
+
+        text += "\n⚠️ WARNINGS\n"
+
+        for warning in warnings:
+
+            text += f"• {warning}\n"
 
 
     criteria = details.get(
@@ -2429,11 +2496,12 @@ def main():
         (
             reject_employment,
             employment_status,
-        ) = employment_type_status(
+        ) = cv_contract_status(
             details.get(
                 "criteria",
                 {}
-            )
+            ),
+            description,
         )
 
 
@@ -2463,7 +2531,7 @@ def main():
         (
             location_ok,
             location_status,
-        ) = final_location_check(
+        ) = cv_location_status(
             job["location"],
             description
         )
@@ -2496,21 +2564,35 @@ def main():
 
 
         # ----------------------------------------------------
-        # AUTOMOTIVE DOMAIN
+        # EXPERIENCE
         # ----------------------------------------------------
 
-        if not has_automotive_context(
-            full_text
-        ):
+        required_years = (
+            cv_extract_experience_years(
+                full_text
+            )
+        )
+
+
+        (
+            reject_experience,
+            experience_status,
+        ) = cv_experience_status(
+            required_years
+        )
+
+
+        if reject_experience:
 
             print(
-                "Rejected: no real automotive context."
+                "Rejected experience:",
+                experience_status
             )
 
 
             if remember_job(
                 job,
-                "rejected_domain"
+                "rejected_experience"
             ):
 
                 stored += 1
@@ -2520,33 +2602,14 @@ def main():
 
 
         # ----------------------------------------------------
-        # EXPERIENCE
-        # ----------------------------------------------------
-
-        required_years = (
-            extract_experience_years(
-                full_text
-            )
-        )
-
-
-        (
-            experience_status,
-            experience_adjustment,
-        ) = experience_fit(
-            required_years
-        )
-
-
-        # ----------------------------------------------------
         # LANGUAGE
         # ----------------------------------------------------
 
         (
+            german_hard_reject,
             german_status,
             german_adjustment,
-            german_hard_reject,
-        ) = german_requirement(
+        ) = cv_german_requirement(
             full_text
         )
 
@@ -2589,18 +2652,46 @@ def main():
         (
             score,
             matched,
-            core_matches,
-        ) = calculate_score(
-
+            skill_warnings,
+            breakdown,
+        ) = cv_evaluate_fit(
             job["title"],
-
             description,
+            details.get(
+                "requirements",
+                []
+            ),
+            details.get(
+                "tasks",
+                []
+            ),
+        )
 
-            experience_adjustment,
+        score = max(
+            0,
+            min(
+                100,
+                score + german_adjustment
+            )
+        )
 
-            german_adjustment,
+        core_matches = matched
 
-            cpp_adjustment,
+        warnings = []
+
+        if german_status.startswith("⚠️"):
+            warnings.append(
+                german_status
+            )
+
+        warnings.extend(
+            skill_warnings
+        )
+
+        warnings.extend(
+            cv_security_warnings(
+                full_text
+            )
         )
 
 
@@ -2626,29 +2717,6 @@ def main():
             "Experience:",
             experience_status
         )
-
-
-        # ----------------------------------------------------
-        # CORE MATCH
-        # ----------------------------------------------------
-
-        if not core_matches:
-
-            print(
-                "Rejected: no core match."
-            )
-
-
-            if remember_job(
-                job,
-                "rejected_no_core",
-                score
-            ):
-
-                stored += 1
-
-
-            continue
 
 
         # ----------------------------------------------------
@@ -2679,13 +2747,16 @@ def main():
         # ----------------------------------------------------
 
         if (
-            experience_status
-            == "Too senior"
-            and score < 90
+            cv_is_senior_title(
+                job["title"]
+            )
+            and score
+            < SENIOR_MIN_MATCH_PERCENT
         ):
 
             print(
-                "Rejected: too senior."
+                "Rejected: senior/lead title below "
+                f"{SENIOR_MIN_MATCH_PERCENT}% fit."
             )
 
 
@@ -2736,6 +2807,10 @@ def main():
             cpp_status,
 
             employment_status,
+
+            warnings,
+
+            breakdown,
         )
 
 
