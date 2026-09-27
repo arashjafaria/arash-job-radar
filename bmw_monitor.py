@@ -1405,6 +1405,52 @@ def build_telegram_message(
             f"• Role: {breakdown.get('role', 0)}%\n"
         )
 
+    if breakdown:
+
+        requirement_details = breakdown.get(
+            "requirement_details",
+            []
+        )
+
+        if requirement_details:
+
+            direct = [
+                item
+                for item in requirement_details
+                if item.get("score", 0) >= 70
+                and item.get("weight", 0) > 0
+            ]
+
+            weak = [
+                item
+                for item in requirement_details
+                if item.get("score", 0) < 70
+                and item.get("weight", 0) > 0
+            ]
+
+            if direct:
+
+                message += "\n✅ REQUIREMENTS SUPPORTED\n"
+
+                for item in direct[:8]:
+
+                    message += (
+                        f"• {item['score']}% — "
+                        f"{item['text']}\n"
+                    )
+
+            if weak:
+
+                message += "\n❌ REQUIREMENT GAPS\n"
+
+                for item in weak[:8]:
+
+                    message += (
+                        f"• {item['score']}% — "
+                        f"{item['text']}\n"
+                    )
+
+
     message += (
         "\n"
 
