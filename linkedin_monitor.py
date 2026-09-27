@@ -25,7 +25,7 @@ from supabase_store import (
 # ARASH JOB RADAR - LINKEDIN V5 + SUPABASE
 # ============================================================
 
-VERSION = "V5 + SUPABASE"
+VERSION = "V6 + SUPABASE"
 SOURCE = "linkedin"
 
 
@@ -1033,19 +1033,19 @@ def german_requirement(
     ).lower()
 
 
-    hard_patterns = [
+    high_patterns = [
 
-        r"german.{0,40}\bc1\b",
+        r"german.{0,40}\\bc1\\b",
 
-        r"deutsch.{0,40}\bc1\b",
+        r"deutsch.{0,40}\\bc1\\b",
 
-        r"\bc1\b.{0,40}german",
+        r"\\bc1\\b.{0,40}german",
 
-        r"\bc1\b.{0,40}deutsch",
+        r"\\bc1\\b.{0,40}deutsch",
 
-        r"german.{0,40}\bc2\b",
+        r"german.{0,40}\\bc2\\b",
 
-        r"deutsch.{0,40}\bc2\b",
+        r"deutsch.{0,40}\\bc2\\b",
 
         r"native german",
 
@@ -1073,7 +1073,7 @@ def german_requirement(
     ]
 
 
-    for pattern in hard_patterns:
+    for pattern in high_patterns:
 
         if re.search(
             pattern,
@@ -1081,21 +1081,21 @@ def german_requirement(
         ):
 
             return (
-                "German requirement above current B1",
-                -100,
-                True
+                "⚠️ German C1/C2/fluent requested; current level B1",
+                -15,
+                False
             )
 
 
     b2_patterns = [
 
-        r"german.{0,40}\bb2\b",
+        r"german.{0,40}\\bb2\\b",
 
-        r"deutsch.{0,40}\bb2\b",
+        r"deutsch.{0,40}\\bb2\\b",
 
-        r"\bb2\b.{0,40}german",
+        r"\\bb2\\b.{0,40}german",
 
-        r"\bb2\b.{0,40}deutsch",
+        r"\\bb2\\b.{0,40}deutsch",
     ]
 
 
@@ -1107,8 +1107,8 @@ def german_requirement(
         ):
 
             return (
-                "German B2 requested",
-                -12,
+                "⚠️ German B2 requested; current level B1",
+                -8,
                 False
             )
 
