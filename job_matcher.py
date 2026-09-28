@@ -1014,13 +1014,19 @@ def evaluate_requirement_phrase(text):
         TECHNICAL_MARKERS,
         low,
     ):
+        # The text looks technical, but it is not in our known vocabulary.
+        # Do not assume it is a mismatch. Keep it visible as uncertain and
+        # exclude it from the percentage unless we have explicit evidence.
         return {
             "text": phrase,
             "score": 0,
-            "weight": 3.0,
-            "category": "unmatched-technical",
-            "core": True,
-            "reason": "Technical requirement not supported by current CV/profile",
+            "weight": 0.0,
+            "category": "uncertain-technical",
+            "core": False,
+            "reason": (
+                "Technical-looking requirement not confidently classified; "
+                "excluded from scoring and not used alone to reject"
+            ),
         }
 
     # Generic/unclassified wording is visible for audit, but does not
@@ -1140,9 +1146,22 @@ def evaluate_requirements(
         if item
     ]
 
+    scored_details = [
+        item
+        for item in details
+        if item.get("weight", 0) > 0
+    ]
+
     requirement_fit = _weighted_score(
         details
     )
+
+    # Fail-open rule: if the parser cannot confidently classify any real
+    # requirement, do not reject the job just because our vocabulary is
+    # incomplete. Give the requirement section a neutral pass threshold and
+    # let hard filters / known mismatches decide.
+    if not scored_details:
+        requirement_fit = MIN_MATCH_PERCENT
 
     core_details = [
         item
@@ -1347,11 +1366,55 @@ def evaluate_fit(
                 ]
             )
 
-    gates_pass = (
+    uncertain_details = [
+        item
+        for item in requirement_details
+        if item.get("category")
+        in {
+            "uncertain-technical",
+            "unclassified",
+        }
+    ]
+
+    strong_mismatches = [
+        item
+        for item in requirement_details
+        if item.get("core")
+        and item.get("weight", 0) >= 4
+        and item.get("score", 100) <= 25
+    ]
+
+    normal_pass = (
         requirement_fit
         >= MIN_MATCH_PERCENT
         and core_fit >= 50
         and overall >= MIN_MATCH_PERCENT
+    )
+
+    # If some requirement text is outside our definitions, uncertainty alone
+    # must not reject the job. Keep/post it unless there is a clear known core
+    # mismatch. Hard filters such as >3 years, German C1+, contract and
+    # location are handled before this matcher.
+    fail_open = (
+        bool(uncertain_details)
+        and not strong_mismatches
+        and not normal_pass
+    )
+
+    if fail_open:
+        overall = max(
+            overall,
+            MIN_MATCH_PERCENT,
+        )
+
+        warnings.append(
+            "⚠️ Some requirement text could not be classified confidently; "
+            "kept for Telegram review because no clear core mismatch was found"
+        )
+
+    gates_pass = (
+        normal_pass
+        or fail_open
     )
 
     breakdown = {
@@ -1361,6 +1424,9 @@ def evaluate_fit(
         "role": role_fit,
         "overall": overall,
         "gates_pass": gates_pass,
+        "fail_open": fail_open,
+        "uncertain_requirements": len(uncertain_details),
+        "strong_mismatches": len(strong_mismatches),
         "requirement_details": requirement_details,
         "responsibility_details": responsibility_details,
     }
