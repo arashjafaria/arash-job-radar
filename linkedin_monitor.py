@@ -2625,9 +2625,18 @@ def main():
         # EXPERIENCE
         # ----------------------------------------------------
 
+        # Experience years must come from candidate requirements,
+        # not company-history text such as "more than 20 years in business".
+        experience_text = " ".join(
+            details.get(
+                "requirements",
+                []
+            )
+        )
+
         required_years = (
             cv_extract_experience_years(
-                full_text
+                experience_text
             )
         )
 
