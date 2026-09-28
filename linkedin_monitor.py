@@ -21,6 +21,7 @@ from profile import (
 from job_matcher import (
     evaluate_fit as cv_evaluate_fit,
     extract_experience_years as cv_extract_experience_years,
+    extract_candidate_experience_years as cv_extract_candidate_experience_years,
     experience_status as cv_experience_status,
     german_requirement as cv_german_requirement,
     contract_status as cv_contract_status,
@@ -2625,18 +2626,13 @@ def main():
         # EXPERIENCE
         # ----------------------------------------------------
 
-        # Experience years must come from candidate requirements,
-        # not company-history text such as "more than 20 years in business".
-        experience_text = " ".join(
-            details.get(
-                "requirements",
-                []
-            )
-        )
-
         required_years = (
-            cv_extract_experience_years(
-                experience_text
+            cv_extract_candidate_experience_years(
+                details.get(
+                    "requirements",
+                    []
+                ),
+                description,
             )
         )
 
