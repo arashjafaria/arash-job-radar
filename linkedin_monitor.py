@@ -1203,6 +1203,10 @@ def cpp_requirement(
         r"fundierte.{0,30}c\+\+",
 
         r"umfangreiche.{0,30}c\+\+",
+
+        r"sicher.{0,30}c\+\+",
+
+        r"c\+\+.{0,30}sicher",
     ]
 
 
