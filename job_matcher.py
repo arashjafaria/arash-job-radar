@@ -99,6 +99,39 @@ TRANSFERABLE_ACTIVITY_TERMS = [
     "engineering analysis",
 ]
 
+BENEFIT_TERMS = [
+    "attraktive vergütung",
+    "attraktive verguetung",
+    "competitive salary",
+    "salary",
+    "vergütung",
+    "verguetung",
+    "benefits",
+    "weiterentwicklungsmöglichkeiten",
+    "weiterentwicklungsmoeglichkeiten",
+    "development opportunities",
+    "career development",
+    "wachstumsorientierten umfeld",
+    "flexible arbeitszeiten",
+    "flexible working hours",
+    "home-office-möglichkeiten",
+    "home-office-moeglichkeiten",
+    "work-life-balance",
+    "work life balance",
+    "urlaub",
+    "vacation",
+    "pension",
+    "betriebliche altersvorsorge",
+]
+
+INTEREST_TERMS = [
+    "interesse an",
+    "interest in",
+    "begeisterung für",
+    "begeisterung fuer",
+    "passion for",
+]
+
 SOFT_SKILL_TERMS = [
     "problem-solving",
     "problem solving",
@@ -154,6 +187,49 @@ OUT_OF_PROFILE_TECH = [
     "pcb layout",
     "rf design",
     "analog circuit design",
+
+    # AI / ML / robotics software not supported by Arash's current CV/profile
+    "machine learning",
+    "deep learning",
+    "ai engineering",
+    "artificial intelligence",
+    "künstliche intelligenz",
+    "pytorch",
+    "tensorflow",
+    "scikit-learn",
+    "sklearn",
+    "opencv",
+    "computer vision",
+    "mlops",
+    "docker",
+    "edge deployment",
+    "model training",
+    "modelltraining",
+    "model deployment",
+    "model monitoring",
+    "datenaufbereitung",
+    "data preparation",
+    "data preprocessing",
+    "2d data",
+    "3d data",
+    "2d-daten",
+    "3d-daten",
+    "sensordatenverarbeitung",
+    "sensor data processing",
+    "algorithm optimization",
+    "algorithmenoptimierung",
+    "arm",
+    "nvidia gpu",
+    "gpu optimization",
+    "cuda",
+    "ros",
+    "ros2",
+    "kubernetes",
+    "matlab",
+    "simulink",
+    "labview",
+    "fpga",
+    "ansys",
 ]
 
 # Context that indicates a transferable activity is being performed in
@@ -209,6 +285,26 @@ TECHNICAL_MARKERS = [
     "integration",
     "diagnostic",
     "engineering",
+    "erfahrung mit",
+    "erfahrung in",
+    "praktische erfahrung",
+    "kenntnisse",
+    "framework",
+    "frameworks",
+    "modell",
+    "model",
+    "training",
+    "deployment",
+    "monitoring",
+    "algorithm",
+    "algorithmen",
+    "optimierung",
+    "datenaufbereitung",
+    "sensordatenverarbeitung",
+    "computer vision",
+    "machine learning",
+    "deep learning",
+    "mlops",
 ]
 
 ADVANCED_WORDS = [
@@ -226,6 +322,9 @@ ADVANCED_WORDS = [
     "umfangreiche",
     "expertenkenntnisse",
     "tiefgreifende",
+    "sicher in",
+    "sicher mit",
+    "sicherer umgang",
 ]
 
 INTERMEDIATE_WORDS = [
@@ -569,6 +668,55 @@ def _admin_result(text):
     return None
 
 
+def split_requirement_phrase(text):
+    """
+    Split compound requirement bullets into meaningful atomic clauses.
+    AND/UND/SOWIE creates separate mandatory clauses.
+    OR/ODER stays inside a clause because one alternative may satisfy it.
+    Hyphenated German constructions such as "Deutsch- und Englisch"
+    are deliberately not split.
+    """
+    phrase = clean(text)
+
+    if not phrase:
+        return []
+
+    # Benefits are kept as one unit and ignored later.
+    if _any_term(
+        BENEFIT_TERMS,
+        phrase,
+    ):
+        return [phrase]
+
+    parts = re.split(
+        r"\s*;\s*|(?<!-)\s+(?:sowie|und|and)\s+",
+        phrase,
+        flags=re.IGNORECASE,
+    )
+
+    parts = [
+        clean(part.strip(" ,"))
+        for part in parts
+        if clean(part.strip(" ,"))
+    ]
+
+    if len(parts) <= 1:
+        return [phrase]
+
+    # Avoid producing meaningless fragments from conjunctions.
+    useful = []
+
+    for part in parts:
+        if len(part) < 3:
+            continue
+
+        useful.append(
+            part
+        )
+
+    return useful or [phrase]
+
+
 def evaluate_requirement_phrase(text):
     phrase = clean(text)
 
@@ -576,6 +724,19 @@ def evaluate_requirement_phrase(text):
         return None
 
     low = phrase.lower()
+
+    if _any_term(
+        BENEFIT_TERMS,
+        low,
+    ):
+        return {
+            "text": phrase,
+            "score": 0,
+            "weight": 0.0,
+            "category": "benefit",
+            "core": False,
+            "reason": "Benefit/non-requirement; excluded from scoring",
+        }
 
     admin = _admin_result(
         phrase
@@ -585,6 +746,24 @@ def evaluate_requirement_phrase(text):
         return {
             "text": phrase,
             **admin,
+        }
+
+    # "Interest in ..." is not evidence of technical competence.
+    if _any_term(
+        INTEREST_TERMS,
+        low,
+    ):
+        skills = detected_skill_scores(
+            phrase
+        )
+
+        return {
+            "text": phrase,
+            "score": 100 if skills else 70,
+            "weight": 0.5,
+            "category": "interest",
+            "core": False,
+            "reason": "Interest/familiarity requirement; very low weight",
         }
 
     exp_domain = _experience_domain_score(
@@ -609,22 +788,91 @@ def evaluate_requirement_phrase(text):
             ),
         }
 
-    if _any_term(
-        OUT_OF_PROFILE_TECH,
-        low,
+    unsupported_hits = [
+        term
+        for term in OUT_OF_PROFILE_TECH
+        if _term_present(
+            term,
+            low,
+        )
+    ]
+
+    skills = detected_skill_scores(
+        phrase
+    )
+
+    if (
+        unsupported_hits
+        and skills
     ):
+        fits = [
+            value["fit"]
+            for value in skills.values()
+        ]
+
+        # Mixed clauses with "or/oder" or example wording mean a known
+        # technology may satisfy part of the requirement, but not all of it.
+        alternative_context = (
+            bool(
+                re.search(
+                    r"\b(?:or|oder)\b",
+                    low,
+                )
+            )
+            or "zum beispiel" in low
+            or "for example" in low
+            or "such as" in low
+            or "beispielsweise" in low
+        )
+
+        mixed_score = (
+            max(fits)
+            if alternative_context
+            else round(
+                (
+                    sum(fits)
+                    + 0 * len(unsupported_hits)
+                )
+                / (
+                    len(fits)
+                    + len(unsupported_hits)
+                )
+            )
+        )
+
+        mixed_score = min(
+            mixed_score,
+            70,
+        )
+
+        return {
+            "text": phrase,
+            "score": mixed_score,
+            "weight": 5.0,
+            "category": "mixed-technical",
+            "core": True,
+            "reason": (
+                "Partial technical match; unsupported: "
+                + ", ".join(
+                    unsupported_hits[:6]
+                )
+            ),
+        }
+
+    if unsupported_hits:
         return {
             "text": phrase,
             "score": 0,
             "weight": 5.0,
             "category": "core-technical",
             "core": True,
-            "reason": "Core technical requirement not supported by CV/profile",
+            "reason": (
+                "Core technical requirement not supported: "
+                + ", ".join(
+                    unsupported_hits[:6]
+                )
+            ),
         }
-
-    skills = detected_skill_scores(
-        phrase
-    )
 
     if skills:
         fits = [
@@ -775,14 +1023,15 @@ def evaluate_requirement_phrase(text):
             "reason": "Technical requirement not supported by current CV/profile",
         }
 
-    # Generic/unclassified wording gets very little influence.
+    # Generic/unclassified wording is visible for audit, but does not
+    # improve or reduce the requirement percentage.
     return {
         "text": phrase,
-        "score": 50,
-        "weight": 0.25,
-        "category": "generic",
+        "score": 0,
+        "weight": 0.0,
+        "category": "unclassified",
         "core": False,
-        "reason": "Generic requirement; very low scoring weight",
+        "reason": "Unclassified/non-technical wording; excluded from scoring",
     }
 
 
@@ -818,11 +1067,20 @@ def evaluate_requirements(
     requirements,
     description,
 ):
-    phrases = [
+    source_phrases = [
         clean(item)
         for item in (requirements or [])
         if clean(item)
     ]
+
+    phrases = []
+
+    for source_phrase in source_phrases:
+        phrases.extend(
+            split_requirement_phrase(
+                source_phrase
+            )
+        )
 
     # If structured requirement bullets could not be parsed, do not invent
     # a positive score from the title. We only inspect sentences that clearly
@@ -850,7 +1108,7 @@ def evaluate_requirements(
             "studium",
         ]
 
-        phrases = [
+        fallback_phrases = [
             clean(sentence)
             for sentence in sentences
             if clean(sentence)
@@ -859,6 +1117,15 @@ def evaluate_requirements(
                 for cue in requirement_cues
             )
         ][:15]
+
+        phrases = []
+
+        for fallback_phrase in fallback_phrases:
+            phrases.extend(
+                split_requirement_phrase(
+                    fallback_phrase
+                )
+            )
 
     details = [
         evaluate_requirement_phrase(
@@ -1250,9 +1517,9 @@ def german_requirement(text):
             low,
         ):
             return (
-                False,
-                "⚠️ German C1/C2/fluent requested; current level B1",
-                -10,
+                True,
+                "German C1/C2/fluent required; current level B1 — rejected",
+                -100,
             )
 
     b2_patterns = [
