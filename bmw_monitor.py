@@ -1663,9 +1663,17 @@ for job in new_jobs:
     # EXPERIENCE
     # --------------------------------------------------------
 
+    # Experience years must come from candidate requirements,
+    # not employer/company-history wording elsewhere in the posting.
+    experience_text = " ".join(
+        details[
+            "requirements"
+        ]
+    )
+
     required_years = (
         cv_extract_experience_years(
-            full_text
+            experience_text
         )
     )
 
