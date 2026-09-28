@@ -1512,6 +1512,158 @@ def extract_experience_years(text):
     )
 
 
+def extract_candidate_experience_years(
+    requirements,
+    description,
+):
+    """
+    Prefer explicit candidate requirement bullets. If LinkedIn fails to
+    expose a Requirements section, fall back to year expressions only when
+    the surrounding text clearly refers to the candidate, not the employer.
+    """
+    req_text = " ".join(
+        clean(item)
+        for item in (requirements or [])
+        if clean(item)
+    )
+
+    if req_text:
+        return extract_experience_years(
+            req_text
+        )
+
+    text = clean(
+        description
+    )
+
+    if not text:
+        return None
+
+    candidate_cues = [
+        "you ",
+        "your ",
+        "bring ",
+        "you bring",
+        "you have",
+        "must ",
+        "required",
+        "requirement",
+        "who you are",
+        "qualification",
+        "experience",
+        "du ",
+        "dein ",
+        "deine ",
+        "sie ",
+        "ihr ",
+        "ihre ",
+        "bringst",
+        "hast ",
+        "erfahrung",
+        "kenntnisse",
+        "qualifikation",
+        "profil",
+    ]
+
+    employer_cues = [
+        "we have been",
+        "has been",
+        "have been",
+        "for over",
+        "for more than",
+        "founded",
+        "since ",
+        "company",
+        "unternehmen",
+        "seit ",
+        "besteht seit",
+        "am markt",
+        "providing services",
+        "serving customers",
+    ]
+
+    # Capture every year expression with local context.
+    year_patterns = [
+        r"\d+\s*\+\s*(?:years?|jahre)",
+        r"(?:more than|over|at least|minimum(?: of)?|mindestens|mehr als)\s+\d+\s*(?:years?|jahre)",
+        r"\d+\s*(?:-|–|—|to|bis)\s*\d+\s*(?:years?|jahre)",
+        r"\d+\s*(?:years?|jahre)\s+(?:of\s+)?experience",
+        r"\d+\s+jahre\s+berufserfahrung",
+        r"\d+\s+jährige\s+berufserfahrung",
+    ]
+
+    candidate_chunks = []
+
+    low = text.lower()
+
+    for pattern in year_patterns:
+        for match in re.finditer(
+            pattern,
+            low,
+        ):
+            start = max(
+                0,
+                match.start() - 180,
+            )
+
+            end = min(
+                len(text),
+                match.end() + 180,
+            )
+
+            chunk = text[
+                start:end
+            ]
+
+            chunk_low = chunk.lower()
+
+            has_candidate_cue = any(
+                cue in chunk_low
+                for cue in candidate_cues
+            )
+
+            has_employer_cue = any(
+                cue in chunk_low
+                for cue in employer_cues
+            )
+
+            # Candidate wording wins when explicit ("you bring 10+ years").
+            explicit_candidate = any(
+                cue in chunk_low
+                for cue in [
+                    "you bring",
+                    "you have",
+                    "must have",
+                    "required",
+                    "who you are",
+                    "du hast",
+                    "du bringst",
+                    "sie haben",
+                    "ihr profil",
+                ]
+            )
+
+            if (
+                has_candidate_cue
+                and (
+                    explicit_candidate
+                    or not has_employer_cue
+                )
+            ):
+                candidate_chunks.append(
+                    chunk
+                )
+
+    if not candidate_chunks:
+        return None
+
+    return extract_experience_years(
+        " ".join(
+            candidate_chunks
+        )
+    )
+
+
 def experience_status(required_years):
     if required_years is None:
         return (
