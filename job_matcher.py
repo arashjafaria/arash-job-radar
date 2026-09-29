@@ -254,6 +254,23 @@ DOMAIN_DISTANCE_TERMS = [
     "breadboard",
     "engineering model",
     "development hardware",
+
+    # Process / medical-product development is not the same validation domain
+    # as ECU/system/software V&V.
+    "process validation",
+    "validierung von prozessen",
+    "prozessvalidierung",
+    "qualification of processes",
+    "qualifizierung von prozessen",
+    "production process",
+    "produktionsprozess",
+    "medical device",
+    "medizintechnik",
+    "medizinische einwegprodukte",
+    "design control",
+    "iq/oq/pq",
+    "peritonealdialyse",
+    "blutreinigung",
 ]
 
 TECHNICAL_MARKERS = [
@@ -914,19 +931,25 @@ def evaluate_requirement_phrase(text):
     )
 
     if education is not None:
+        education_weight = (
+            4.0
+            if education < 70
+            else 2.0
+        )
+
         return {
             "text": phrase,
             "score": education,
-            "weight": 2.0,
+            "weight": education_weight,
             "category": "education",
-            "core": False,
+            "core": education < 70,
             "reason": (
                 "Education directly matches"
                 if education == 100
                 else (
                     "Education is reasonably related"
                     if education >= 70
-                    else "Requested education field differs from CV"
+                    else "Requested mandatory education field differs from CV"
                 )
             ),
         }
@@ -1889,14 +1912,20 @@ def location_status(
     ).lower()
 
     for city in MUNICH_AREA:
-        if city in location_low:
+        if _term_present(
+            city,
+            location_low,
+        ):
             return (
                 True,
                 "Onsite/hybrid within accepted Munich ~150 km area",
             )
 
     for city in SPECIAL_ONSITE_EXCEPTIONS:
-        if city in location_low:
+        if _term_present(
+            city,
+            location_low,
+        ):
             return (
                 True,
                 "Accepted onsite exception: Nuremberg",
