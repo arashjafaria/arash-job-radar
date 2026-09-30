@@ -1747,9 +1747,9 @@ def german_requirement(text):
             low,
         ):
             return (
-                True,
-                "German native / Muttersprache explicitly required",
-                -100,
+                False,
+                "⚠️ Native German / Muttersprache requested; current level B1",
+                -5,
             )
 
     c_patterns = [
