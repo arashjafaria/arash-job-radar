@@ -32,7 +32,12 @@ from supabase_store import (
 REVISION = "2026-09-30-b"
 DRY_RUN = __import__("os").getenv("MARKET_DRY_RUN", "0") == "1"
 MAX_JOB_AGE_DAYS = 3
-MAX_NEW_DETAILS_PER_SOURCE = 20
+MAX_NEW_DETAILS_PER_SOURCE = int(
+    __import__("os").getenv(
+        "MARKET_MAX_DETAILS",
+        "20",
+    )
+)
 TELEGRAM_MAX = 3900
 TERMS_PER_RUN = 3
 
@@ -54,6 +59,16 @@ SEARCH_TERMS = [
 
 def clean(value):
     return re.sub(r"\s+", " ", html.unescape(str(value or ""))).strip()
+
+
+def is_austria_location(value):
+    low = clean(value).lower()
+    return bool(
+        re.search(
+            r"(?:^|[,/ ]|\b)(?:at|austria|österreich)(?:$|[,/ ]|\b)",
+            low,
+        )
+    )
 
 
 def excluded(text):
@@ -594,9 +609,9 @@ def evaluate_candidate(page, candidate):
         not loc_ok
         and candidate.get("search_area") == "Munich"
         and candidate.get("source") in {"stepstone", "indeed"}
-        and "at" not in (details["location"] or "").lower()
-        and "austria" not in (details["location"] or "").lower()
-        and "österreich" not in (details["location"] or "").lower()
+        and not is_austria_location(
+            details["location"]
+        )
     ):
         loc_ok = True
         loc_text = "Within source Munich-radius search"
@@ -605,9 +620,9 @@ def evaluate_candidate(page, candidate):
         not loc_ok
         and candidate.get("search_area") == "Nuremberg"
         and candidate.get("source") in {"stepstone", "indeed"}
-        and "at" not in (details["location"] or "").lower()
-        and "austria" not in (details["location"] or "").lower()
-        and "österreich" not in (details["location"] or "").lower()
+        and not is_austria_location(
+            details["location"]
+        )
     ):
         loc_ok = True
         loc_text = "Accepted Nuremberg search area"
@@ -769,7 +784,19 @@ def main():
             headless=True,
             args=["--disable-http2"],
         )
-        for source in ["stepstone", "indeed"]:
+        configured_sources = [
+            item.strip().lower()
+            for item in __import__("os").getenv(
+                "MARKET_SOURCES",
+                "stepstone,indeed",
+            ).split(",")
+            if item.strip()
+        ]
+
+        for source in configured_sources:
+            if source not in {"stepstone", "indeed"}:
+                continue
+
             try:
                 results.append(run_source(browser, source, queries))
             except Exception as exc:
