@@ -30,6 +30,7 @@ from supabase_store import (
 )
 
 REVISION = "2026-09-30-b"
+DRY_RUN = __import__("os").getenv("MARKET_DRY_RUN", "0") == "1"
 MAX_JOB_AGE_DAYS = 3
 MAX_NEW_DETAILS_PER_SOURCE = 20
 TELEGRAM_MAX = 3900
@@ -412,6 +413,10 @@ def should_process(candidate):
 
 
 def remember(candidate, details, status, score=None, sent=False):
+    if DRY_RUN:
+        print("  DRY RUN: Supabase write suppressed:", status)
+        return
+
     stored_status = "sent" if sent else (
         status + "@" + REVISION if status.startswith("rejected_") else status
     )
@@ -445,6 +450,10 @@ def remember(candidate, details, status, score=None, sent=False):
 
 
 def send_telegram(text):
+    if DRY_RUN:
+        print("  DRY RUN: Telegram suppressed.")
+        return True
+
     response = requests.post(
         "https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage",
         data={"chat_id": CHAT_ID, "text": text, "disable_web_page_preview": False},
@@ -745,6 +754,7 @@ def main():
     print("\n" + "=" * 70)
     print("ARASH JOB RADAR - INDEED + STEPSTONE")
     print("Matcher revision:", REVISION)
+    print("Dry run:", DRY_RUN)
     print("Search terms:", ", ".join(queries))
     print("=" * 70)
 
