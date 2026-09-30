@@ -1749,7 +1749,6 @@ def german_requirement(text):
         r"german.{0,30}fluent",
         r"fließend.{0,30}deutsch",
         r"fliessend.{0,30}deutsch",
-        r"sehr gute deutschkenntnisse",
     ]
 
     for pattern in c_patterns:
@@ -1761,6 +1760,23 @@ def german_requirement(text):
                 True,
                 "German C1/C2/fluent required; current level B1 — rejected",
                 -100,
+            )
+
+    very_good_patterns = [
+        r"sehr gute deutschkenntnisse",
+        r"sehr gutes deutsch",
+        r"very good german",
+    ]
+
+    for pattern in very_good_patterns:
+        if re.search(
+            pattern,
+            low,
+        ):
+            return (
+                False,
+                "⚠️ Very good German requested, but no explicit C1/C2 level; current level B1",
+                -5,
             )
 
     b2_patterns = [
