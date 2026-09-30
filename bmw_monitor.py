@@ -60,6 +60,11 @@ SEEN_FILE = os.path.join(
     "bmw_seen_jobs.json"
 )
 
+SENT_FILE = os.path.join(
+    DATA_DIR,
+    "bmw_sent_jobs.json"
+)
+
 PAGES_TO_SCAN = 5
 
 MAX_JOB_AGE_DAYS = 3
@@ -158,6 +163,7 @@ def send_long_telegram(text):
     )
 
     total = len(chunks)
+    all_ok = True
 
     for index, chunk in enumerate(
         chunks,
@@ -171,9 +177,12 @@ def send_long_telegram(text):
                 + chunk
             )
 
-        send_telegram(
+        if not send_telegram(
             chunk
-        )
+        ):
+            all_ok = False
+
+    return all_ok
 
 
 # ============================================================
@@ -1570,6 +1579,7 @@ print(
 )
 
 sent_count = 0
+sent_urls = set()
 
 for job in new_jobs:
 
@@ -1855,12 +1865,36 @@ for job in new_jobs:
         "MATCH -> Telegram"
     )
 
-    send_long_telegram(
+    telegram_ok = send_long_telegram(
         message
     )
 
-    sent_count += 1
+    if telegram_ok:
+        sent_count += 1
+        sent_urls.add(
+            job["url"]
+        )
+    else:
+        print(
+            "Telegram delivery failed; job not marked as sent."
+        )
 
+
+with open(
+    SENT_FILE,
+    "w",
+    encoding="utf-8"
+) as file:
+    json.dump(
+        sorted(
+            list(
+                sent_urls
+            )
+        ),
+        file,
+        indent=2,
+        ensure_ascii=False
+    )
 
 save_seen_jobs(
     seen_jobs
