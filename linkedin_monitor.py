@@ -32,7 +32,9 @@ from job_matcher import (
 
 from supabase_store import (
     job_exists,
+    get_job_record,
     save_job,
+    update_job,
 )
 
 
@@ -42,6 +44,7 @@ from supabase_store import (
 
 VERSION = "V7 CV MATCHER + SUPABASE"
 SOURCE = "linkedin"
+MATCHER_REVISION = "2026-09-30-a"
 
 
 SEARCH_URL = (
@@ -432,7 +435,7 @@ def any_term_present(
 # SUPABASE MEMORY
 # ============================================================
 
-def already_seen(job_id):
+def already_seen(job):
 
     if TEST_MODE:
 
@@ -441,10 +444,89 @@ def already_seen(job_id):
 
     try:
 
-        return job_exists(
+        record = get_job_record(
             SOURCE,
-            str(job_id)
+            str(
+                job["job_id"]
+            )
         )
+
+        if not record:
+
+            return False
+
+        status = (
+            record.get(
+                "status",
+                ""
+            )
+            or ""
+        )
+
+        if (
+            record.get(
+                "sent_to_telegram"
+            )
+            or status == "sent"
+        ):
+
+            return True
+
+        stored_posted = (
+            record.get(
+                "posted_at"
+            )
+            or ""
+        )
+
+        current_posted = (
+            job.get(
+                "posted",
+                ""
+            )
+            or ""
+        )
+
+        # Same LinkedIn ID can be reposted/updated. Re-evaluate when
+        # LinkedIn reports a different posting timestamp.
+        if (
+            current_posted
+            and stored_posted
+            and current_posted
+            != stored_posted
+        ):
+
+            print(
+                "Rechecking reposted/updated job:",
+                job["job_id"]
+            )
+
+            return False
+
+        # Re-evaluate old rejected records once whenever matcher rules
+        # change. New rejections are stamped with MATCHER_REVISION.
+        revision_tag = (
+            "@"
+            + MATCHER_REVISION
+        )
+
+        if (
+            status.startswith(
+                "rejected_"
+            )
+            and not status.endswith(
+                revision_tag
+            )
+        ):
+
+            print(
+                "Rechecking previous rejection after matcher update:",
+                job["job_id"]
+            )
+
+            return False
+
+        return True
 
     except Exception as exc:
 
@@ -470,6 +552,16 @@ def remember_job(
 
 
     try:
+
+        stored_status = (
+            "sent"
+            if sent_to_telegram
+            else (
+                status
+                + "@"
+                + MATCHER_REVISION
+            )
+        )
 
         inserted = save_job(
 
@@ -506,7 +598,7 @@ def remember_job(
 
             match_score=match_score,
 
-            status=status,
+            status=stored_status,
 
             sent_to_telegram=(
                 sent_to_telegram
@@ -518,13 +610,30 @@ def remember_job(
 
             print(
                 "Saved to Supabase:",
-                status
+                stored_status
             )
 
         else:
 
+            update_job(
+                SOURCE,
+                str(
+                    job["job_id"]
+                ),
+                match_score=match_score,
+                status=stored_status,
+                sent_to_telegram=(
+                    sent_to_telegram
+                ),
+                posted_at=job.get(
+                    "posted",
+                    ""
+                ),
+            )
+
             print(
-                "Already stored in Supabase."
+                "Updated Supabase:",
+                stored_status
             )
 
 
@@ -2394,7 +2503,7 @@ def main():
 
 
         if already_seen(
-            job["job_id"]
+            job
         ):
 
             print(
