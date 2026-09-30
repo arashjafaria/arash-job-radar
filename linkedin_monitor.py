@@ -44,7 +44,7 @@ from supabase_store import (
 
 VERSION = "V7 CV MATCHER + SUPABASE"
 SOURCE = "linkedin"
-MATCHER_REVISION = "2026-09-30-a"
+MATCHER_REVISION = "2026-09-30-b"
 
 
 SEARCH_URL = (
