@@ -20,7 +20,7 @@ from supabase_store import (
 SOURCE = "bmw"
 SEEN_FILE = "bmw_seen_jobs.json"
 SENT_FILE = "bmw_sent_jobs.json"
-BMW_MATCHER_REVISION = "2026-09-30-a"
+BMW_MATCHER_REVISION = "2026-09-30-b"
 TABLE = "arash_jobs"
 
 API_URL = (
