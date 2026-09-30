@@ -1,0 +1,45 @@
+name: Arash Indeed + StepStone Job Radar
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arash-market-job-radar
+  cancel-in-progress: false
+
+jobs:
+  market-radar:
+    runs-on: ubuntu-latest
+
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_ID: ${{ secrets.CHAT_ID }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Chromium
+        run: |
+          python -m playwright install --with-deps chromium
+
+      - name: Run Indeed + StepStone Job Radar
+        run: |
+          python market_monitor.py
