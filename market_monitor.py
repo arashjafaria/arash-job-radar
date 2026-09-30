@@ -29,7 +29,7 @@ from supabase_store import (
     update_job,
 )
 
-REVISION = "2026-09-30-a"
+REVISION = "2026-09-30-b"
 MAX_JOB_AGE_DAYS = 3
 MAX_NEW_DETAILS_PER_SOURCE = 20
 TELEGRAM_MAX = 3900
@@ -571,6 +571,33 @@ def evaluate_candidate(page, candidate):
         return False
 
     loc_ok, loc_text = cv_location_status(details["location"], details["description"])
+
+    # StepStone/Indeed location searches are themselves bounded. If the
+    # source returned the job inside our Munich-radius or explicit Nuremberg
+    # search, accept that source context even when the static city list does
+    # not yet contain a nearby town such as Wessling, Kaufering or Manching.
+    if (
+        not loc_ok
+        and candidate.get("search_area") == "Munich"
+        and candidate.get("source") in {"stepstone", "indeed"}
+        and "at" not in (details["location"] or "").lower()
+        and "austria" not in (details["location"] or "").lower()
+        and "österreich" not in (details["location"] or "").lower()
+    ):
+        loc_ok = True
+        loc_text = "Within source Munich-radius search"
+
+    if (
+        not loc_ok
+        and candidate.get("search_area") == "Nuremberg"
+        and candidate.get("source") in {"stepstone", "indeed"}
+        and "at" not in (details["location"] or "").lower()
+        and "austria" not in (details["location"] or "").lower()
+        and "österreich" not in (details["location"] or "").lower()
+    ):
+        loc_ok = True
+        loc_text = "Accepted Nuremberg search area"
+
     if not loc_ok:
         print("  Rejected location:", loc_text, "|", details["location"])
         remember(candidate, details, "rejected_location")
@@ -605,7 +632,11 @@ def evaluate_candidate(page, candidate):
     print("  Score:", score, "| req:", breakdown.get("requirements", 0), "| core:", breakdown.get("core_requirements", 0))
 
     if not breakdown.get("gates_pass", False):
-        print("  Rejected by requirement gates.")
+        print(
+            "  Rejected by requirement gates.",
+            "| domain:",
+            breakdown.get("domain_reason", ""),
+        )
         remember(candidate, details, "rejected_requirements", score)
         return False
 
