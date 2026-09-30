@@ -148,6 +148,36 @@ def job_exists(
     return bool(rows)
 
 
+def get_job_record(
+    source,
+    job_id,
+):
+    _check_config()
+
+    response = _request(
+        "GET",
+        params={
+            "select": "id,status,sent_to_telegram,posted_at,match_score",
+            "source": f"eq.{source}",
+            "job_id": f"eq.{job_id}",
+            "limit": "1",
+        },
+    )
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            "Supabase get_job_record failed: "
+            + response.text
+        )
+
+    rows = response.json()
+
+    if not rows:
+        return None
+
+    return rows[0]
+
+
 # ============================================================
 # SAVE NEW JOB
 # ============================================================
@@ -225,6 +255,7 @@ def update_job(
     match_score=None,
     status=None,
     sent_to_telegram=None,
+    posted_at=None,
 ):
 
     _check_config()
@@ -252,6 +283,12 @@ def update_job(
         data[
             "sent_to_telegram"
         ] = sent_to_telegram
+
+    if posted_at is not None:
+
+        data[
+            "posted_at"
+        ] = posted_at or None
 
 
     if not data:
