@@ -13,11 +13,14 @@ from config import (
 from supabase_store import (
     job_exists,
     save_job,
+    update_job,
 )
 
 
 SOURCE = "bmw"
 SEEN_FILE = "bmw_seen_jobs.json"
+SENT_FILE = "bmw_sent_jobs.json"
+BMW_MATCHER_REVISION = "2026-09-30-a"
 TABLE = "arash_jobs"
 
 API_URL = (
@@ -34,9 +37,9 @@ HEADERS = {
 # LOAD BMW MEMORY FROM SUPABASE
 # ============================================================
 
-def get_supabase_bmw_ids():
+def get_supabase_bmw_records():
 
-    all_ids = []
+    all_rows = []
 
     offset = 0
     batch_size = 1000
@@ -47,7 +50,7 @@ def get_supabase_bmw_ids():
             API_URL,
             headers=HEADERS,
             params={
-                "select": "job_id",
+                "select": "job_id,status,sent_to_telegram",
                 "source": "eq.bmw",
                 "limit": str(batch_size),
                 "offset": str(offset),
@@ -63,31 +66,61 @@ def get_supabase_bmw_ids():
             )
 
         rows = response.json()
-
-        for row in rows:
-
-            job_id = str(
-                row.get(
-                    "job_id",
-                    ""
-                )
-            ).strip()
-
-            if job_id:
-
-                all_ids.append(
-                    job_id
-                )
+        all_rows.extend(
+            rows
+        )
 
         if len(rows) < batch_size:
-
             break
 
         offset += batch_size
 
-    return set(
-        all_ids
+    return all_rows
+
+
+def get_current_seen_ids(
+    records,
+):
+    current_tag = (
+        "@"
+        + BMW_MATCHER_REVISION
     )
+
+    result = set()
+
+    for row in records:
+        job_id = str(
+            row.get(
+                "job_id",
+                ""
+            )
+        ).strip()
+
+        if not job_id:
+            continue
+
+        status = (
+            row.get(
+                "status",
+                ""
+            )
+            or ""
+        )
+
+        if (
+            row.get(
+                "sent_to_telegram"
+            )
+            or status == "sent"
+            or status.endswith(
+                current_tag
+            )
+        ):
+            result.add(
+                job_id
+            )
+
+    return result
 
 
 # ============================================================
@@ -146,6 +179,42 @@ def get_local_ids():
     return set()
 
 
+def get_sent_ids():
+
+    if not os.path.exists(
+        SENT_FILE
+    ):
+        return set()
+
+    try:
+        with open(
+            SENT_FILE,
+            "r",
+            encoding="utf-8",
+        ) as file:
+            data = json.load(
+                file
+            )
+
+        if isinstance(
+            data,
+            list
+        ):
+            return set(
+                str(item).strip()
+                for item in data
+                if str(item).strip()
+            )
+
+    except Exception as exc:
+        print(
+            "BMW sent-file read error:",
+            exc
+        )
+
+    return set()
+
+
 # ============================================================
 # WRITE MEMORY FOR BMW MONITOR
 # ============================================================
@@ -177,31 +246,55 @@ def write_seen_file(
 def sync_to_supabase(
     before_ids,
     after_ids,
+    sent_ids,
 ):
 
-    new_ids = (
+    processed_ids = (
         after_ids
         - before_ids
     )
 
     print()
     print(
-        "New BMW IDs created by monitor:",
-        len(new_ids)
+        "BMW IDs processed by monitor:",
+        len(processed_ids)
     )
 
     inserted = 0
+    updated = 0
     failed = 0
 
-    for job_id in new_ids:
+    revision_status = (
+        "seen_by_bmw_monitor@"
+        + BMW_MATCHER_REVISION
+    )
+
+    for job_id in processed_ids:
 
         try:
+
+            sent = (
+                job_id
+                in sent_ids
+            )
+
+            status = (
+                "sent"
+                if sent
+                else revision_status
+            )
 
             if job_exists(
                 SOURCE,
                 job_id
             ):
-
+                update_job(
+                    SOURCE,
+                    job_id,
+                    status=status,
+                    sent_to_telegram=sent,
+                )
+                updated += 1
                 continue
 
             saved = save_job(
@@ -217,12 +310,11 @@ def sync_to_supabase(
                 ),
                 posted_at="",
                 match_score=None,
-                status="seen_by_bmw_monitor",
-                sent_to_telegram=False,
+                status=status,
+                sent_to_telegram=sent,
             )
 
             if saved:
-
                 inserted += 1
 
         except Exception as exc:
@@ -237,6 +329,7 @@ def sync_to_supabase(
 
     return (
         inserted,
+        updated,
         failed
     )
 
@@ -269,48 +362,57 @@ def main():
     # 1. Read Supabase memory
     # --------------------------------------------------------
 
-    supabase_ids = (
-        get_supabase_bmw_ids()
+    supabase_records = (
+        get_supabase_bmw_records()
+    )
+
+    all_supabase_ids = set(
+        str(
+            row.get(
+                "job_id",
+                ""
+            )
+        ).strip()
+        for row in supabase_records
+        if str(
+            row.get(
+                "job_id",
+                ""
+            )
+        ).strip()
+    )
+
+    current_seen_ids = (
+        get_current_seen_ids(
+            supabase_records
+        )
     )
 
     print(
         "BMW jobs in Supabase:",
-        len(supabase_ids)
-    )
-
-
-    # --------------------------------------------------------
-    # 2. Preserve anything already local
-    # --------------------------------------------------------
-
-    local_ids = (
-        get_local_ids()
+        len(all_supabase_ids)
     )
 
     print(
-        "BMW jobs in local memory:",
-        len(local_ids)
+        "BMW jobs valid for current matcher revision:",
+        len(current_seen_ids)
     )
-
-
-    combined_ids = (
-        supabase_ids
-        | local_ids
-    )
-
 
     print(
-        "Combined BMW memory:",
-        len(combined_ids)
+        "BMW legacy/stale jobs eligible for one-time recheck:",
+        len(
+            all_supabase_ids
+            - current_seen_ids
+        )
     )
 
 
     # --------------------------------------------------------
-    # 3. Give BMW monitor the complete memory
+    # 2. Give BMW monitor only current-revision memory
     # --------------------------------------------------------
 
     write_seen_file(
-        combined_ids
+        current_seen_ids
     )
 
 
@@ -354,10 +456,15 @@ def main():
     # 6. Sync new IDs to Supabase
     # --------------------------------------------------------
 
-    inserted, failed = (
+    sent_ids = (
+        get_sent_ids()
+    )
+
+    inserted, updated, failed = (
         sync_to_supabase(
-            supabase_ids,
+            current_seen_ids,
             after_ids,
+            sent_ids,
         )
     )
 
@@ -369,7 +476,7 @@ def main():
 
     print(
         "Supabase before run:",
-        len(supabase_ids)
+        len(all_supabase_ids)
     )
 
     print(
@@ -378,8 +485,13 @@ def main():
     )
 
     print(
-        "New jobs saved to Supabase:",
+        "New BMW rows saved to Supabase:",
         inserted
+    )
+
+    print(
+        "Existing BMW rows updated:",
+        updated
     )
 
     print(
