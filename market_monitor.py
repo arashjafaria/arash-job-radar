@@ -31,7 +31,7 @@ from supabase_store import (
 
 REVISION = "2026-09-30-a"
 MAX_JOB_AGE_DAYS = 3
-MAX_NEW_DETAILS_PER_SOURCE = 12
+MAX_NEW_DETAILS_PER_SOURCE = 20
 TELEGRAM_MAX = 3900
 TERMS_PER_RUN = 3
 
@@ -273,8 +273,8 @@ def stepstone_urls(query):
     slug = quote(query.lower().replace(" ", "-"), safe="-")
     base = "https://www.stepstone.de/jobs/" + slug
     return [
-        ("Munich", base + "/in-m%C3%BCnchen?radius=100"),
-        ("Nuremberg", base + "/in-n%C3%BCrnberg?radius=30"),
+        ("Munich", base + "/in-m%C3%BCnchen?radius=100&sort=2"),
+        ("Nuremberg", base + "/in-n%C3%BCrnberg?radius=30&sort=2"),
         ("Remote", base + "/remote"),
     ]
 
@@ -560,9 +560,9 @@ def evaluate_candidate(page, candidate):
     candidate["title"] = details["title"] or candidate.get("title", "")
     full_text = candidate["title"] + " " + details["description"]
 
-    if excluded(full_text):
-        print("  Rejected: internship/student/apprenticeship.")
-        remember(candidate, details, "rejected_title")
+    if excluded(details["employment_type"]):
+        print("  Rejected employment type:", details["employment_type"])
+        remember(candidate, details, "rejected_employment")
         return False
 
     if not is_recent(details["date_posted"]):
@@ -652,8 +652,20 @@ def current_terms():
 
 
 def run_source(browser, source, queries):
-    search_page = browser.new_page(viewport={"width": 1440, "height": 1100})
-    detail_page = browser.new_page(viewport={"width": 1440, "height": 1100})
+    context = browser.new_context(
+        viewport={"width": 1440, "height": 1100},
+        locale="de-DE",
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/140.0.0.0 Safari/537.36"
+        ),
+        extra_http_headers={
+            "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+        },
+    )
+    search_page = context.new_page()
+    detail_page = context.new_page()
     collected = {}
 
     for query in queries:
@@ -689,6 +701,7 @@ def run_source(browser, source, queries):
 
     search_page.close()
     detail_page.close()
+    context.close()
     print(source.upper(), "SUMMARY | candidates:", len(collected), "| checked:", checked, "| sent:", sent)
     return source, len(collected), checked, sent
 
@@ -706,7 +719,10 @@ def main():
 
     results = []
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--disable-http2"],
+        )
         for source in ["stepstone", "indeed"]:
             try:
                 results.append(run_source(browser, source, queries))
