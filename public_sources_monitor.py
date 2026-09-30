@@ -33,7 +33,7 @@ from supabase_store import (
 )
 
 
-MATCHER_REVISION = "2026-09-30-b"
+MATCHER_REVISION = "2026-09-30-c"
 MAX_AGE_DAYS = 1
 TELEGRAM_LIMIT = 3900
 
