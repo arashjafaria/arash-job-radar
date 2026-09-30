@@ -17,7 +17,7 @@ permissions:
 
 concurrency:
   group: arash-market-job-radar
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   market-radar:
@@ -28,6 +28,7 @@ jobs:
       CHAT_ID: ${{ secrets.CHAT_ID }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      MARKET_DRY_RUN: "1"
 
     steps:
       - name: Checkout repository
