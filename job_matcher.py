@@ -567,6 +567,22 @@ def _education_result(text):
     ):
         return None
 
+    # Generic technical/engineering degree requirements directly match
+    # Arash's M.Eng Electrical Engineering + M.Eng Mechatronics background.
+    generic_technical_degree = [
+        "abgeschlossenes technisches studium",
+        "technisches studium",
+        "ingenieurwissenschaftliches studium",
+        "engineering degree",
+        "technical degree",
+    ]
+
+    if any(
+        term in low
+        for term in generic_technical_degree
+    ):
+        return 100
+
     direct_fields = [
         "electrical engineering",
         "elektrotechnik",
