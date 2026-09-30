@@ -291,7 +291,7 @@ def stepstone_urls(query):
     return [
         ("Munich", base + "/in-m%C3%BCnchen?radius=100&sort=2"),
         ("Nuremberg", base + "/in-n%C3%BCrnberg?radius=30&sort=2"),
-        ("Remote", base + "/remote"),
+        ("Remote", base + "/in-home-office?sort=2"),
     ]
 
 
