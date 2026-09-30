@@ -399,6 +399,11 @@ def collect_indeed(page, query):
 
 
 def should_process(candidate):
+    # Validation runs intentionally re-evaluate the visible candidates so
+    # matcher changes can be checked against jobs that were already stored.
+    if DRY_RUN:
+        return True
+
     record = get_job_record(candidate["source"], candidate["job_id"])
     if not record:
         return True
