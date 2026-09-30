@@ -11,8 +11,6 @@ on:
       - "profile.py"
       - "supabase_store.py"
       - ".github/workflows/market-radar.yml"
-  schedule:
-    - cron: "*/15 * * * *"
 
 permissions:
   contents: read
