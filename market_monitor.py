@@ -231,7 +231,7 @@ def build_employment(posting):
 
 def get_job_details(page, candidate):
     try:
-        response = page.goto(candidate["url"], wait_until="domcontentloaded", timeout=45000)
+        response = page.goto(candidate["url"], wait_until="domcontentloaded", timeout=25000)
         page.wait_for_timeout(900)
     except Exception as exc:
         print("  Detail navigation error:", exc)
@@ -288,11 +288,19 @@ def get_job_details(page, candidate):
 def stepstone_urls(query):
     slug = quote(query.lower().replace(" ", "-"), safe="-")
     base = "https://www.stepstone.de/jobs/" + slug
-    return [
+
+    urls = [
         ("Munich", base + "/in-m%C3%BCnchen?radius=100&sort=2"),
         ("Nuremberg", base + "/in-n%C3%BCrnberg?radius=30&sort=2"),
         ("Remote", base + "/in-home-office?sort=2"),
     ]
+
+    # Keep validation runs short and deterministic. Production scans all
+    # three areas once DRY_RUN is disabled.
+    if DRY_RUN:
+        return urls[:1]
+
+    return urls
 
 
 def indeed_urls(query):
@@ -707,6 +715,9 @@ def evaluate_candidate(page, candidate):
 
 
 def current_terms():
+    if DRY_RUN:
+        return ["System Integration Engineer"]
+
     groups = [SEARCH_TERMS[i:i + TERMS_PER_RUN] for i in range(0, len(SEARCH_TERMS), TERMS_PER_RUN)]
     return groups[int(time.time() // 900) % len(groups)]
 
