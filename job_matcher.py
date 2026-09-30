@@ -334,6 +334,8 @@ OUT_OF_DOMAIN_TITLE_TERMS = [
     "openshift",
     "systemadministrator",
     "system administrator",
+    "systemadministration",
+    "devops",
     "sps-ingenieur",
     "sps ingenieur",
     "plc engineer",
@@ -367,6 +369,8 @@ IT_INFRA_CLUSTER_TERMS = [
     "elasticsearch",
     "elk",
     "cloud infrastructure",
+    "devops",
+    "platform engineering",
     "data center",
     "datacenter",
 ]
