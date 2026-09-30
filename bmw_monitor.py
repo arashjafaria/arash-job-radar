@@ -1760,8 +1760,8 @@ for job in new_jobs:
         ],
     )
 
-    # German B2/C1/C2 is a warning only.
-    # Native German remains a hard rejection above.
+    # Only explicit German C1/C2/fluent/verhandlungssicher is a hard reject.
+    # B2, "very good German", and native/Muttersprache wording are warnings.
     score = max(
         0,
         min(
