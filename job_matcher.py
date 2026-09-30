@@ -230,6 +230,56 @@ OUT_OF_PROFILE_TECH = [
     "labview",
     "fpga",
     "ansys",
+
+    # IT infrastructure / enterprise stacks. Linux by itself remains transferable;
+    # these are concrete administration/platform requirements outside the profile.
+    "linux system administration",
+    "linux administration",
+    "system administration",
+    "systemadministration",
+    "infrastructure operations",
+    "ansible",
+    "puppet",
+    "terraform",
+    "openshift",
+    "active directory",
+    "microsoft 365",
+    "dns",
+    "dhcp",
+    "pxe",
+    "prometheus",
+    "grafana",
+    "elasticsearch",
+    "elk stack",
+    "cloud infrastructure",
+    "data center infrastructure",
+    "datacenter infrastructure",
+
+    # PLC / industrial controls not evidenced in the current CV.
+    "sps",
+    "plc",
+    "tia portal",
+    "siemens s7",
+    "codesys",
+
+    # Graphics / content creation.
+    "3d artist",
+    "blender",
+    "autodesk maya",
+    "cinema 4d",
+    "rendering pipeline",
+
+    # Enterprise application stacks.
+    "sap",
+    "servicenow",
+    "salesforce",
+
+    # Programming ecosystems not evidenced in the current CV.
+    "rust",
+    "golang",
+    "go language",
+    "c#",
+    "java",
 ]
 
 # Context that indicates a transferable activity is being performed in
@@ -272,6 +322,114 @@ DOMAIN_DISTANCE_TERMS = [
     "peritonealdialyse",
     "blutreinigung",
 ]
+
+# Clear title-level domains that are normally outside Arash's target profile.
+# These are used as a context gate, not as a single-word ban on technologies
+# such as Linux.
+OUT_OF_DOMAIN_TITLE_TERMS = [
+    "3d artist",
+    "cloud engineer",
+    "devops engineer",
+    "platform engineer",
+    "openshift",
+    "systemadministrator",
+    "system administrator",
+    "sps-ingenieur",
+    "sps ingenieur",
+    "plc engineer",
+    "sap consultant",
+    "sap engineer",
+    "erp engineer",
+    "data engineer",
+    "machine learning engineer",
+    "ai engineer",
+]
+
+IT_INFRA_CLUSTER_TERMS = [
+    "linux system administration",
+    "linux administration",
+    "system administration",
+    "systemadministration",
+    "infrastructure operations",
+    "ansible",
+    "puppet",
+    "terraform",
+    "openshift",
+    "kubernetes",
+    "active directory",
+    "microsoft 365",
+    "dns",
+    "dhcp",
+    "pxe",
+    "proxy",
+    "prometheus",
+    "grafana",
+    "elasticsearch",
+    "elk",
+    "cloud infrastructure",
+    "data center",
+    "datacenter",
+]
+
+PLC_CLUSTER_TERMS = [
+    "sps",
+    "plc",
+    "tia portal",
+    "siemens s7",
+    "codesys",
+    "steuerungs- und regeltechnik",
+]
+
+GRAPHICS_CLUSTER_TERMS = [
+    "3d artist",
+    "blender",
+    "autodesk maya",
+    "cinema 4d",
+    "rendering",
+    "animation",
+]
+
+CORE_PROFILE_DOMAIN_SKILLS = {
+    "ecu-test",
+    "amts",
+    "canoe",
+    "can fd",
+    "uds",
+    "restbus",
+    "xcp",
+    "diagnostics",
+    "dtc",
+    "did",
+    "system testing",
+    "system integration testing",
+    "requirements-based testing",
+    "regression testing",
+    "defect analysis",
+    "root cause analysis",
+    "odx",
+    "pdx",
+    "ethernet diagnostics",
+    "some/ip-sd",
+    "restbus simulation",
+    "vector vt",
+    "canalyzer",
+    "hil",
+    "sil",
+    "automotive ethernet",
+    "doip",
+    "some/ip",
+    "dlt",
+    "adas",
+    "radar",
+    "lidar",
+    "usrr",
+    "mrr",
+    "srr",
+    "ecu",
+    "sensor",
+    "vehicle integration",
+}
+
 
 TECHNICAL_MARKERS = [
     "experience with",
@@ -1327,6 +1485,156 @@ def _role_fit(title):
     return 30
 
 
+def _domain_gate(
+    title,
+    all_text,
+    detected,
+    role_fit,
+    responsibility_fit,
+    requirement_details,
+):
+    """
+    Detect when generic words such as "system", "integration" or "engineer"
+    are being used in a clearly different profession.
+
+    Linux alone is intentionally not a mismatch. A Linux role is rejected by
+    this gate only when the surrounding stack clearly forms an infrastructure
+    administration cluster and there is little direct CV-domain evidence.
+    """
+    title_low = (
+        title
+        or ""
+    ).lower()
+
+    text_low = (
+        all_text
+        or ""
+    ).lower()
+
+    core_skill_hits = [
+        skill
+        for skill in detected
+        if skill
+        in CORE_PROFILE_DOMAIN_SKILLS
+    ]
+
+    strong_requirement_hits = [
+        item
+        for item in requirement_details
+        if item.get(
+            "core"
+        )
+        and item.get(
+            "weight",
+            0,
+        ) > 0
+        and item.get(
+            "score",
+            0,
+        ) >= 70
+    ]
+
+    direct_evidence = (
+        len(
+            core_skill_hits
+        )
+        >= 2
+        or len(
+            strong_requirement_hits
+        )
+        >= 2
+        or (
+            len(
+                core_skill_hits
+            )
+            >= 1
+            and responsibility_fit
+            >= 70
+        )
+    )
+
+    title_mismatch = [
+        term
+        for term in OUT_OF_DOMAIN_TITLE_TERMS
+        if _term_present(
+            term,
+            title_low,
+        )
+    ]
+
+    if (
+        title_mismatch
+        and not direct_evidence
+    ):
+        return (
+            False,
+            "Title indicates a different technical profession: "
+            + ", ".join(
+                title_mismatch[:4]
+            ),
+        )
+
+    cluster_groups = [
+        (
+            "IT infrastructure/administration",
+            IT_INFRA_CLUSTER_TERMS,
+            2,
+        ),
+        (
+            "PLC/industrial controls",
+            PLC_CLUSTER_TERMS,
+            2,
+        ),
+        (
+            "3D graphics/content creation",
+            GRAPHICS_CLUSTER_TERMS,
+            2,
+        ),
+    ]
+
+    for label, terms, minimum_hits in cluster_groups:
+        hits = [
+            term
+            for term in terms
+            if _term_present(
+                term,
+                text_low,
+            )
+        ]
+
+        if (
+            len(
+                hits
+            )
+            >= minimum_hits
+            and not direct_evidence
+        ):
+            return (
+                False,
+                label
+                + " cluster outside current CV: "
+                + ", ".join(
+                    hits[:6]
+                ),
+            )
+
+    # A role whose title is not even in an engineering/test/system family must
+    # have concrete direct CV evidence before it can pass through fail-open.
+    if (
+        role_fit < 70
+        and not direct_evidence
+    ):
+        return (
+            False,
+            "Role title is outside the target families and no strong direct CV-domain evidence was found",
+        )
+
+    return (
+        True,
+        "Domain context compatible",
+    )
+
+
 def evaluate_fit(
     title,
     description,
@@ -1385,6 +1693,18 @@ def evaluate_fit(
         detected.keys()
     )
 
+    (
+        domain_ok,
+        domain_reason,
+    ) = _domain_gate(
+        title,
+        all_text,
+        detected,
+        role_fit,
+        responsibility_fit,
+        requirement_details,
+    )
+
     warnings = []
 
     for skill, value in detected.items():
@@ -1424,7 +1744,8 @@ def evaluate_fit(
     ]
 
     normal_pass = (
-        requirement_fit
+        domain_ok
+        and requirement_fit
         >= MIN_MATCH_PERCENT
         and core_fit >= 50
         and overall >= MIN_MATCH_PERCENT
@@ -1435,7 +1756,8 @@ def evaluate_fit(
     # mismatch. Hard filters such as >3 years, German C1+, contract and
     # location are handled before this matcher.
     fail_open = (
-        bool(uncertain_details)
+        domain_ok
+        and bool(uncertain_details)
         and not strong_mismatches
         and not normal_pass
     )
@@ -1466,6 +1788,8 @@ def evaluate_fit(
         "fail_open": fail_open,
         "uncertain_requirements": len(uncertain_details),
         "strong_mismatches": len(strong_mismatches),
+        "domain_ok": domain_ok,
+        "domain_reason": domain_reason,
         "requirement_details": requirement_details,
         "responsibility_details": responsibility_details,
     }
