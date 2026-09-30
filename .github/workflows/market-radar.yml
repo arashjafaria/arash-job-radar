@@ -2,6 +2,15 @@ name: Arash Indeed + StepStone Job Radar
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "market_monitor.py"
+      - "job_matcher.py"
+      - "profile.py"
+      - "supabase_store.py"
+      - ".github/workflows/market-radar.yml"
   schedule:
     - cron: "*/15 * * * *"
 
