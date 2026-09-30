@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
-from urllib.parse import urljoin
+from urllib.parse import urljoin, quote_plus
 
 from config import BOT_TOKEN, CHAT_ID
 
@@ -66,6 +66,24 @@ SENT_FILE = os.path.join(
 )
 
 PAGES_TO_SCAN = 5
+
+# Search BMW by relevant role families instead of relying only on the
+# newest global pages, which are often dominated by internships/student jobs.
+BMW_SEARCH_QUERIES = [
+    "Entwicklungsingenieur",
+    "Testingenieur",
+    "Systemingenieur",
+    "Validierung",
+    "Systemintegration",
+    "Diagnose",
+    "HIL",
+    "ADAS",
+    "Radar",
+    "Test Automation",
+]
+
+TARGETED_PAGES_PER_QUERY = 1
+GENERIC_FALLBACK_PAGES = 2
 
 MAX_JOB_AGE_DAYS = 3
 
@@ -312,10 +330,116 @@ def read_current_page_jobs(
     return jobs
 
 
+def _bmw_search_url(
+    query="",
+):
+    return (
+        "https://jobs.bmwgroup.com/search/"
+        "?q="
+        + quote_plus(
+            query
+        )
+        + "&sortColumn=referencedate"
+        + "&sortDirection=desc"
+        + "&searchResultView=LIST"
+        + "&locale=de_DE"
+    )
+
+
+def _collect_search_pages(
+    page,
+    search_url,
+    pages_to_scan,
+    label,
+    all_jobs,
+    global_seen,
+):
+    print()
+    print("=" * 60)
+    print(
+        "BMW SEARCH:",
+        label,
+    )
+    print("=" * 60)
+
+    page.goto(
+        search_url,
+        wait_until="domcontentloaded",
+        timeout=60000,
+    )
+
+    page.wait_for_timeout(
+        2500
+    )
+
+    for page_number in range(
+        1,
+        pages_to_scan + 1,
+    ):
+        if page_number > 1:
+            aria_label = (
+                f"Zur Seite {page_number} wechseln"
+            )
+
+            button = page.locator(
+                f'button[aria-label="{aria_label}"]'
+            )
+
+            if button.count() == 0:
+                break
+
+            try:
+                button.click(
+                    timeout=15000
+                )
+
+                page.wait_for_timeout(
+                    1800
+                )
+
+            except Exception as exc:
+                print(
+                    "Pagination error:",
+                    exc,
+                )
+                break
+
+        page_jobs = (
+            read_current_page_jobs(
+                page,
+                page_number,
+            )
+        )
+
+        added = 0
+
+        for job in page_jobs:
+            if (
+                job["url"]
+                in global_seen
+            ):
+                continue
+
+            global_seen.add(
+                job["url"]
+            )
+
+            all_jobs.append(
+                job
+            )
+
+            added += 1
+
+        print(
+            f"{label} page {page_number}:",
+            added,
+            "unique jobs added",
+        )
+
+
 def get_bmw_jobs():
 
     all_jobs = []
-
     global_seen = set()
 
     with sync_playwright() as p:
@@ -327,109 +451,48 @@ def get_bmw_jobs():
         page = browser.new_page(
             viewport={
                 "width": 1400,
-                "height": 1000
+                "height": 1000,
             }
         )
 
-        print(
-            "Opening BMW Germany Jobs..."
-        )
-
-        page.goto(
-            BMW_URL,
-            wait_until="domcontentloaded",
-            timeout=60000
-        )
-
-        page.wait_for_timeout(
-            6000
-        )
-
-        print(
-            "Page title:",
-            page.title()
-        )
-
-        for page_number in range(
-            1,
-            PAGES_TO_SCAN + 1
-        ):
-
-            print()
-            print("=" * 60)
-            print(
-                f"SCANNING BMW PAGE {page_number}"
-            )
-            print("=" * 60)
-
-            if page_number > 1:
-
-                aria_label = (
-                    f"Zur Seite {page_number} wechseln"
-                )
-
-                button = page.locator(
-                    f'button[aria-label="{aria_label}"]'
-                )
-
-                if button.count() == 0:
-
-                    print(
-                        "Pagination button not found."
-                    )
-
-                    break
-
-                try:
-
-                    button.click(
-                        timeout=15000
-                    )
-
-                    page.wait_for_timeout(
-                        3000
-                    )
-
-                except Exception as e:
-
-                    print(
-                        "Pagination error:",
-                        e
-                    )
-
-                    break
-
-            page_jobs = (
-                read_current_page_jobs(
+        # Targeted searches prevent relevant engineering jobs from being
+        # buried behind large batches of internship/student postings.
+        for query in BMW_SEARCH_QUERIES:
+            try:
+                _collect_search_pages(
                     page,
-                    page_number
+                    _bmw_search_url(
+                        query
+                    ),
+                    TARGETED_PAGES_PER_QUERY,
+                    query,
+                    all_jobs,
+                    global_seen,
                 )
+
+            except Exception as exc:
+                print(
+                    "BMW targeted search error:",
+                    query,
+                    exc,
+                )
+
+        # Keep a small generic newest-jobs scan as a safety net for titles
+        # that do not contain one of our normal search terms.
+        try:
+            _collect_search_pages(
+                page,
+                _bmw_search_url(),
+                GENERIC_FALLBACK_PAGES,
+                "generic newest",
+                all_jobs,
+                global_seen,
             )
 
-            added = 0
-
-            for job in page_jobs:
-
-                if (
-                    job["url"]
-                    in global_seen
-                ):
-
-                    continue
-
-                global_seen.add(
-                    job["url"]
-                )
-
-                all_jobs.append(
-                    job
-                )
-
-                added += 1
-
+        except Exception as exc:
             print(
-                "Unique jobs added:",
-                added
+                "BMW generic search error:",
+                exc,
             )
 
         browser.close()
