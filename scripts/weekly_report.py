@@ -5,8 +5,9 @@ from pathlib import Path
 
 import requests
 from supabase_store import _request, _check_config, update_job
+from profile import MATCHER_REVISION
 
-CURRENT_MATCHER_REVISION = "2026-10-02-a"
+CURRENT_MATCHER_REVISION = MATCHER_REVISION
 MAX_REVIEW_JOBS_PER_DIGEST = 8
 
 
