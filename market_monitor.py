@@ -477,6 +477,33 @@ def remember(candidate, details, status, score=None, sent=False):
     print("  Updated:", stored_status)
 
 
+def audit_candidate(candidate, details, stage, score=None, breakdown=None):
+    """Collect real posting evidence in dry-run artifacts, never production."""
+    if not DRY_RUN:
+        return
+    breakdown = breakdown or {}
+    payload = {
+        "source": candidate.get("source"),
+        "job_id": candidate.get("job_id"),
+        "url": candidate.get("url"),
+        "title": details.get("title"),
+        "company": details.get("company"),
+        "location": details.get("location"),
+        "date_posted": details.get("date_posted"),
+        "stage": stage,
+        "requirements": details.get("requirements", [])[:12],
+        "tasks": details.get("tasks", [])[:12],
+        "description_excerpt": details.get("description", "")[:1500],
+        "score": score,
+        "gates_pass": breakdown.get("gates_pass"),
+        "review_required": breakdown.get("review_required"),
+        "domain_reason": breakdown.get("domain_reason"),
+        "core_evidence": breakdown.get("core_evidence"),
+    }
+    with open("market_audit.jsonl", "a", encoding="utf-8") as file:
+        file.write(json.dumps(payload, ensure_ascii=False) + "\\n")
+
+
 def send_telegram(text):
     if DRY_RUN:
         print("  DRY RUN: Telegram suppressed.")
@@ -594,6 +621,7 @@ def evaluate_candidate(page, candidate):
         print("  Detail unavailable; not stored, will retry.")
         return False
 
+    audit_candidate(candidate, details, "parsed")
     candidate["title"] = details["title"] or candidate.get("title", "")
     full_text = candidate["title"] + " " + details["description"]
 
@@ -667,6 +695,7 @@ def evaluate_candidate(page, candidate):
     )
     score = max(0, min(100, score))
     print("  Score:", score, "| req:", breakdown.get("requirements", 0), "| core:", breakdown.get("core_requirements", 0))
+    audit_candidate(candidate, details, "evaluated", score, breakdown)
 
     if breakdown.get("review_required", False):
         print("  REVIEW REQUIRED: uncertain requirements; no automatic Telegram")
