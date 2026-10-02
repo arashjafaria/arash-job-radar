@@ -1,0 +1,45 @@
+name: Job Radar manual-review digest
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Once in the evening in Germany; not every five-minute scan.
+    - cron: "30 16 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arash-review-digest
+  cancel-in-progress: false
+
+jobs:
+  review-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_ID: ${{ secrets.CHAT_ID }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install requests
+      - name: Send at most eight queued low-confidence opportunities
+        run: python -m scripts.review_digest
+      - name: Alert on daily digest failure
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
+            curl --fail --silent --show-error --retry 2 \
+              --request POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${CHAT_ID}" \
+              --data-urlencode "text=⚠️ Job Radar manual-review digest failed. ${RUN_URL}"
+          else
+            echo "::warning::Telegram secrets not configured"
+          fi
