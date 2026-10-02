@@ -1755,10 +1755,29 @@ def evaluate_fit(
         and item.get("score", 100) <= 25
     ]
 
+    # A high percentage computed from only a few recognizable requirements
+    # is not a reliable fit score. Assess extraction/classification coverage
+    # independently, without adding title-specific blacklists.
+    assessed_requirements = [
+        item
+        for item in requirement_details
+        if item.get("weight", 0) >= 2
+    ]
+    coverage_denominator = len(assessed_requirements) + len(uncertain_details)
+    evidence_coverage = (
+        round(100 * len(assessed_requirements) / coverage_denominator)
+        if coverage_denominator else 0
+    )
+    low_coverage = (
+        len(uncertain_details) >= 3
+        and evidence_coverage < 65
+    )
+
     normal_pass = (
         domain_ok
         and has_scored_requirements
         and has_core_evidence
+        and not low_coverage
         and requirement_fit
         >= MIN_MATCH_PERCENT
         and core_fit >= 50
@@ -1776,6 +1795,7 @@ def evaluate_fit(
         and (
             not has_scored_requirements
             or not has_core_evidence
+            or low_coverage
             or bool(uncertain_details)
         )
     )
@@ -1800,6 +1820,8 @@ def evaluate_fit(
         "requirements_evidence": has_scored_requirements,
         "core_evidence": has_core_evidence,
         "uncertain_requirements": len(uncertain_details),
+        "evidence_coverage_percent": evidence_coverage,
+        "low_evidence_coverage": low_coverage,
         "strong_mismatches": len(strong_mismatches),
         "domain_ok": domain_ok,
         "domain_reason": domain_reason,
