@@ -1,0 +1,500 @@
+{
+  "description": "45 synthetic, explicitly labeled matching regression scenarios inspired by observed failure categories; NOT a real-posting precision benchmark.",
+  "cases": [
+    {
+      "id": "supported-01",
+      "expected": "accept",
+      "title": "ECU Test Engineer",
+      "requirements": [
+        "Hands-on experience with ECU diagnostics and UDS"
+      ],
+      "tasks": [
+        "Perform requirements-based testing and regression testing"
+      ]
+    },
+    {
+      "id": "supported-02",
+      "expected": "accept",
+      "title": "ADAS Test Engineer",
+      "requirements": [
+        "Experience with ADAS radar testing and ECU"
+      ],
+      "tasks": [
+        "Execute system testing and defect analysis"
+      ]
+    },
+    {
+      "id": "supported-03",
+      "expected": "accept",
+      "title": "Automotive Test Engineer",
+      "requirements": [
+        "Experience with CANoe and CAN FD"
+      ],
+      "tasks": [
+        "Conduct vehicle integration and regression testing"
+      ]
+    },
+    {
+      "id": "supported-04",
+      "expected": "accept",
+      "title": "HIL Test Engineer",
+      "requirements": [
+        "Practical knowledge of HIL and ECU testing"
+      ],
+      "tasks": [
+        "Perform system integration testing and diagnostic testing"
+      ]
+    },
+    {
+      "id": "supported-05",
+      "expected": "accept",
+      "title": "Validation Engineer",
+      "requirements": [
+        "Experience with automated regression testing and ecu.test"
+      ],
+      "tasks": [
+        "Perform requirements-based testing and defect analysis"
+      ]
+    },
+    {
+      "id": "supported-06",
+      "expected": "accept",
+      "title": "System Integration Engineer",
+      "requirements": [
+        "Knowledge of UDS and system integration testing"
+      ],
+      "tasks": [
+        "Validate ECU integration and execute tests"
+      ]
+    },
+    {
+      "id": "supported-07",
+      "expected": "accept",
+      "title": "Verification Engineer",
+      "requirements": [
+        "Experience with verification and requirements-based testing"
+      ],
+      "tasks": [
+        "Perform regression testing and fault analysis"
+      ]
+    },
+    {
+      "id": "supported-08",
+      "expected": "accept",
+      "title": "Diagnostics Engineer",
+      "requirements": [
+        "Hands-on UDS diagnostics and DTC analysis"
+      ],
+      "tasks": [
+        "Investigate diagnostic failures and CAN logs"
+      ]
+    },
+    {
+      "id": "supported-09",
+      "expected": "accept",
+      "title": "Software Test Engineer",
+      "requirements": [
+        "Experience in software regression testing and ecu.test"
+      ],
+      "tasks": [
+        "Design system test cases and analyze defects"
+      ]
+    },
+    {
+      "id": "supported-10",
+      "expected": "accept",
+      "title": "Vehicle Integration Engineer",
+      "requirements": [
+        "Experience with vehicle integration and CANoe"
+      ],
+      "tasks": [
+        "Carry out ECU system integration testing"
+      ]
+    },
+    {
+      "id": "supported-11",
+      "expected": "accept",
+      "title": "Radar Test Engineer",
+      "requirements": [
+        "Knowledge of ADAS radar and ECU diagnostics"
+      ],
+      "tasks": [
+        "Conduct radar validation and defect analysis"
+      ]
+    },
+    {
+      "id": "supported-12",
+      "expected": "accept",
+      "title": "Test Automation Engineer",
+      "requirements": [
+        "Experience in ecu.test and requirements-based testing"
+      ],
+      "tasks": [
+        "Automate regression testing of vehicle ECUs"
+      ]
+    },
+    {
+      "id": "supported-13",
+      "expected": "accept",
+      "title": "System Test Engineer",
+      "requirements": [
+        "Experience with CAN FD and system testing"
+      ],
+      "tasks": [
+        "Perform verification and integration testing"
+      ]
+    },
+    {
+      "id": "supported-14",
+      "expected": "accept",
+      "title": "R&D Engineer",
+      "requirements": [
+        "Experience with ADAS testing and diagnostic testing"
+      ],
+      "tasks": [
+        "Perform defect analysis and vehicle testing"
+      ]
+    },
+    {
+      "id": "supported-15",
+      "expected": "accept",
+      "title": "Entwicklungsingenieur",
+      "requirements": [
+        "Erfahrung mit CANoe und UDS Diagnose"
+      ],
+      "tasks": [
+        "Durchführung von Systemtests und Validierung"
+      ]
+    },
+    {
+      "id": "mismatch-01",
+      "expected": "reject",
+      "title": "Expert 3D-Artist",
+      "requirements": [
+        "Professional experience in Blender, Autodesk Maya and 3D artist rendering"
+      ],
+      "tasks": [
+        "Build production animation and rendering pipelines"
+      ]
+    },
+    {
+      "id": "mismatch-02",
+      "expected": "reject",
+      "title": "Infrastructure Engineer",
+      "requirements": [
+        "Experience in Terraform, Kubernetes and DNS infrastructure"
+      ],
+      "tasks": [
+        "Maintain data center and cloud infrastructure operations"
+      ]
+    },
+    {
+      "id": "mismatch-03",
+      "expected": "reject",
+      "title": "Platform & DevOps Engineer",
+      "requirements": [
+        "Hands-on Kubernetes, Ansible and cloud infrastructure"
+      ],
+      "tasks": [
+        "Operate DevOps deployment platforms"
+      ]
+    },
+    {
+      "id": "mismatch-04",
+      "expected": "reject",
+      "title": "Senior SAP Integration Engineer",
+      "requirements": [
+        "SAP and enterprise integration platform expertise"
+      ],
+      "tasks": [
+        "Integrate SAP enterprise modules"
+      ]
+    },
+    {
+      "id": "mismatch-05",
+      "expected": "reject",
+      "title": "Experienced Cloud Engineer / Cloud Admin",
+      "requirements": [
+        "Experience in cloud infrastructure, Active Directory and Azure administration"
+      ],
+      "tasks": [
+        "Manage cloud infrastructure operations"
+      ]
+    },
+    {
+      "id": "mismatch-06",
+      "expected": "reject",
+      "title": "PLC Engineer",
+      "requirements": [
+        "Hands-on SPS and Siemens S7 and TIA Portal"
+      ],
+      "tasks": [
+        "Develop PLC automation"
+      ]
+    },
+    {
+      "id": "mismatch-07",
+      "expected": "reject",
+      "title": "Mechanical Design Engineer",
+      "requirements": [
+        "Advanced mechanical design in SolidWorks and CATIA"
+      ],
+      "tasks": [
+        "Prepare CAD drawings and structural analyses"
+      ]
+    },
+    {
+      "id": "mismatch-08",
+      "expected": "reject",
+      "title": "RF Design Engineer",
+      "requirements": [
+        "Experience in RF design and antenna simulations"
+      ],
+      "tasks": [
+        "Design RF frontends"
+      ]
+    },
+    {
+      "id": "mismatch-09",
+      "expected": "reject",
+      "title": "Data Engineer",
+      "requirements": [
+        "Knowledge of data pipelines, Spark and cloud infrastructure"
+      ],
+      "tasks": [
+        "Build production data pipelines"
+      ]
+    },
+    {
+      "id": "mismatch-10",
+      "expected": "reject",
+      "title": "Machine Learning Engineer",
+      "requirements": [
+        "Experience in PyTorch, model training and MLOps"
+      ],
+      "tasks": [
+        "Deploy deep learning models"
+      ]
+    },
+    {
+      "id": "mismatch-11",
+      "expected": "reject",
+      "title": "AI Engineer",
+      "requirements": [
+        "Advanced experience in TensorFlow and computer vision"
+      ],
+      "tasks": [
+        "Train ML models and maintain ML infrastructure"
+      ]
+    },
+    {
+      "id": "mismatch-12",
+      "expected": "reject",
+      "title": "3D Animation Technical Artist",
+      "requirements": [
+        "Expertise in Blender and Maya rendering"
+      ],
+      "tasks": [
+        "Design artistic animation assets"
+      ]
+    },
+    {
+      "id": "mismatch-13",
+      "expected": "reject",
+      "title": "System Administrator",
+      "requirements": [
+        "Experience in Active Directory, DNS and DHCP"
+      ],
+      "tasks": [
+        "Administer corporate Windows systems"
+      ]
+    },
+    {
+      "id": "mismatch-14",
+      "expected": "reject",
+      "title": "SAP Consultant",
+      "requirements": [
+        "SAP modules and business process configuration"
+      ],
+      "tasks": [
+        "Configure ERP business systems"
+      ]
+    },
+    {
+      "id": "mismatch-15",
+      "expected": "reject",
+      "title": "Cloud Infrastructure Architect",
+      "requirements": [
+        "Kubernetes, Terraform, Ansible, data center architecture"
+      ],
+      "tasks": [
+        "Develop scalable cloud infrastructure"
+      ]
+    },
+    {
+      "id": "uncertain-01",
+      "expected": "review",
+      "title": "Systems Engineer",
+      "requirements": [
+        "Excellent organizational ability and a willingness to learn"
+      ],
+      "tasks": [
+        "Coordinate multidisciplinary engineering teams"
+      ]
+    },
+    {
+      "id": "uncertain-02",
+      "expected": "review",
+      "title": "System Integration Engineer",
+      "requirements": [
+        "Knowledge of proprietary ZX-92 platform standards"
+      ],
+      "tasks": [
+        "Integrate an undisclosed industrial system"
+      ]
+    },
+    {
+      "id": "uncertain-03",
+      "expected": "review",
+      "title": "Verification Engineer",
+      "requirements": [
+        "A technical degree and good communication skills"
+      ],
+      "tasks": [
+        "Help our teams deliver products"
+      ]
+    },
+    {
+      "id": "uncertain-04",
+      "expected": "review",
+      "title": "Development Engineer",
+      "requirements": [
+        "Passion for innovative products and teamwork"
+      ],
+      "tasks": [
+        "Work independently"
+      ]
+    },
+    {
+      "id": "uncertain-05",
+      "expected": "review",
+      "title": "Test Engineer",
+      "requirements": [
+        "Understanding of internal company methodologies"
+      ],
+      "tasks": [
+        "Support test campaigns"
+      ]
+    },
+    {
+      "id": "uncertain-06",
+      "expected": "review",
+      "title": "Validation Engineer",
+      "requirements": [
+        "Good analytical thinking and flexibility"
+      ],
+      "tasks": [
+        "Review test reports"
+      ]
+    },
+    {
+      "id": "uncertain-07",
+      "expected": "review",
+      "title": "Requirements Engineer",
+      "requirements": [
+        "Strong communication and stakeholder management"
+      ],
+      "tasks": [
+        "Collect requirements with engineering teams"
+      ]
+    },
+    {
+      "id": "uncertain-08",
+      "expected": "review",
+      "title": "Automotive Engineer",
+      "requirements": [
+        "Relevant experience and motivation"
+      ],
+      "tasks": [
+        "Contribute to product improvements"
+      ]
+    },
+    {
+      "id": "uncertain-09",
+      "expected": "review",
+      "title": "Software Test Engineer",
+      "requirements": [
+        "Experience with company-specific testing frameworks"
+      ],
+      "tasks": [
+        "Support product teams"
+      ]
+    },
+    {
+      "id": "uncertain-10",
+      "expected": "review",
+      "title": "System Test Engineer",
+      "requirements": [
+        "Ability to work under pressure"
+      ],
+      "tasks": [
+        "Coordinate validation activities"
+      ]
+    },
+    {
+      "id": "uncertain-11",
+      "expected": "review",
+      "title": "R&D Engineer",
+      "requirements": [
+        "Familiarity with proprietary hardware platforms"
+      ],
+      "tasks": [
+        "Research new product ideas"
+      ]
+    },
+    {
+      "id": "uncertain-12",
+      "expected": "review",
+      "title": "Integration Engineer",
+      "requirements": [
+        "Hands-on experience with unknown VendorXYZ protocols"
+      ],
+      "tasks": [
+        "Integrate modular components"
+      ]
+    },
+    {
+      "id": "uncertain-13",
+      "expected": "review",
+      "title": "Vehicle Test Engineer",
+      "requirements": [
+        "Good teamwork and organizational skills"
+      ],
+      "tasks": [
+        "Document technical findings"
+      ]
+    },
+    {
+      "id": "uncertain-14",
+      "expected": "review",
+      "title": "System Engineer",
+      "requirements": [
+        "Experience in an unspecified product domain"
+      ],
+      "tasks": [
+        "Work closely with partner teams"
+      ]
+    },
+    {
+      "id": "uncertain-15",
+      "expected": "review",
+      "title": "Validation Engineer",
+      "requirements": [
+        "A willingness to learn future products"
+      ],
+      "tasks": [
+        "Support validation organization"
+      ]
+    }
+  ]
+}
