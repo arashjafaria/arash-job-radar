@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
 from config import BOT_TOKEN, CHAT_ID
-from profile import ARASH_EXPERIENCE_YEARS, EXCLUDE_WORDS, MIN_MATCH_PERCENT, SENIOR_MIN_MATCH_PERCENT
+from profile import ARASH_EXPERIENCE_YEARS, EXCLUDE_WORDS, MIN_MATCH_PERCENT, SENIOR_MIN_MATCH_PERCENT, MATCHER_REVISION
 from job_matcher import (
     contract_status as cv_contract_status,
     evaluate_fit as cv_evaluate_fit,
@@ -29,7 +29,7 @@ from supabase_store import (
     update_job,
 )
 
-REVISION = "2026-10-02-a"
+REVISION = MATCHER_REVISION
 DRY_RUN = __import__("os").getenv("MARKET_DRY_RUN", "0") == "1"
 MAX_JOB_AGE_DAYS = 3
 MAX_NEW_DETAILS_PER_SOURCE = int(
