@@ -37,4 +37,8 @@ jobs:
 
       - name: Run LinkedIn Job Radar
         run: |
-          python linkedin_monitor.py
+          set -o pipefail
+          python linkedin_monitor.py | tee linkedin_run.log
+
+      - name: Verify LinkedIn searches returned usable results
+        run: python -m scripts.live_health linkedin linkedin_run.log
