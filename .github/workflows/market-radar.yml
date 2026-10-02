@@ -2,6 +2,8 @@ name: Arash Indeed + StepStone Job Radar
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
   push:
     branches:
       - main
@@ -10,6 +12,7 @@ on:
       - "job_matcher.py"
       - "profile.py"
       - "supabase_store.py"
+      - "scripts/**"
       - ".github/workflows/market-radar.yml"
 
 permissions:
@@ -50,6 +53,40 @@ jobs:
         run: |
           python -m playwright install --with-deps chromium
 
-      - name: Run Indeed + StepStone Job Radar
+      - name: Run safe StepStone dry-run sample
         run: |
-          python market_monitor.py
+          set -o pipefail
+          python market_monitor.py | tee market_scan.log
+
+      - name: Fail when StepStone was blocked or no sample was assessed
+        run: python -m scripts.market_health market_scan.log
+
+      - name: Preserve dry-run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stepstone-validation-${{ github.run_id }}
+          path: |
+            market_scan.log
+            market_health.json
+            market_audit.jsonl
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Weekly StepStone dry-run summary
+        if: ${{ github.event_name == 'schedule' }}
+        run: python -m scripts.weekly_report
+
+      - name: Alert if live validation fails
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
+            curl --fail --silent --show-error --retry 2 \
+              --request POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${CHAT_ID}" \
+              --data-urlencode "text=⚠️ StepStone dry-run validation failed. No production alerts were enabled. ${RUN_URL}"
+          else
+            echo "::warning::Telegram notification secrets missing"
+          fi

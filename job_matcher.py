@@ -1357,12 +1357,10 @@ def evaluate_requirements(
         details
     )
 
-    # Fail-open rule: if the parser cannot confidently classify any real
-    # requirement, do not reject the job just because our vocabulary is
-    # incomplete. Give the requirement section a neutral pass threshold and
-    # let hard filters / known mismatches decide.
+    # Missing extractable requirements are UNASSESSED, never an implicit
+    # 60% match. They can enter the review queue instead of being rejected.
     if not scored_details:
-        requirement_fit = MIN_MATCH_PERCENT
+        requirement_fit = 0
 
     core_details = [
         item
@@ -1371,19 +1369,27 @@ def evaluate_requirements(
         and item["weight"] > 0
     ]
 
-    if core_details:
-        core_fit = _weighted_score(
-            core_details
-        )
+    # A transferable activity (for example generic stakeholder coordination
+    # or "testing" in an undisclosed domain) is not proof that the role's
+    # core technical requirements are met. Require specific evidence from
+    # the candidate's documented skills / experience domain.
+    verified_core_details = [
+        item
+        for item in core_details
+        if item.get("category") in {"core-technical", "experience-domain"}
+        and item.get("score", 0) >= 70
+    ]
+    if verified_core_details:
+        core_fit = _weighted_score(core_details)
     else:
-        # No explicit core requirement means the core gate does not
-        # independently reject the job.
-        core_fit = 100
+        core_fit = 0
 
     return (
         requirement_fit,
         core_fit,
         details,
+        bool(scored_details),
+        bool(verified_core_details),
     )
 
 
@@ -1652,6 +1658,8 @@ def evaluate_fit(
         requirement_fit,
         core_fit,
         requirement_details,
+        has_scored_requirements,
+        has_core_evidence,
     ) = evaluate_requirements(
         requirements,
         description,
@@ -1747,40 +1755,58 @@ def evaluate_fit(
         and item.get("score", 100) <= 25
     ]
 
+    # A high percentage computed from only a few recognizable requirements
+    # is not a reliable fit score. Assess extraction/classification coverage
+    # independently, without adding title-specific blacklists.
+    assessed_requirements = [
+        item
+        for item in requirement_details
+        if item.get("weight", 0) >= 2
+    ]
+    coverage_denominator = len(assessed_requirements) + len(uncertain_details)
+    evidence_coverage = (
+        round(100 * len(assessed_requirements) / coverage_denominator)
+        if coverage_denominator else 0
+    )
+    low_coverage = (
+        len(uncertain_details) >= 3
+        and evidence_coverage < 65
+    )
+
     normal_pass = (
         domain_ok
+        and has_scored_requirements
+        and has_core_evidence
+        and not low_coverage
         and requirement_fit
         >= MIN_MATCH_PERCENT
         and core_fit >= 50
         and overall >= MIN_MATCH_PERCENT
     )
 
-    # If some requirement text is outside our definitions, uncertainty alone
-    # must not reject the job. Keep/post it unless there is a clear known core
-    # mismatch. Hard filters such as >3 years, German C1+, contract and
-    # location are handled before this matcher.
-    fail_open = (
+    # No automatic notification when core evidence is missing or the
+    # parser is uncertain and the normal gates did not pass. Preserve these
+    # opportunities in a distinct human-review queue instead of silently
+    # rejecting them or inventing positive evidence.
+    review_required = (
         domain_ok
-        and bool(uncertain_details)
         and not strong_mismatches
         and not normal_pass
-    )
-
-    if fail_open:
-        overall = max(
-            overall,
-            MIN_MATCH_PERCENT,
+        and (
+            not has_scored_requirements
+            or not has_core_evidence
+            or low_coverage
+            or bool(uncertain_details)
         )
-
+    )
+    if review_required:
         warnings.append(
-            "⚠️ Some requirement text could not be classified confidently; "
-            "kept for Telegram review because no clear core mismatch was found"
+            "⚠️ Not enough verified requirement evidence for an automatic "
+            "match; queued for review rather than scored as compatible"
         )
 
-    gates_pass = (
-        normal_pass
-        or fail_open
-    )
+    fail_open = False
+    gates_pass = normal_pass
 
     breakdown = {
         "requirements": requirement_fit,
@@ -1790,7 +1816,12 @@ def evaluate_fit(
         "overall": overall,
         "gates_pass": gates_pass,
         "fail_open": fail_open,
+        "review_required": review_required,
+        "requirements_evidence": has_scored_requirements,
+        "core_evidence": has_core_evidence,
         "uncertain_requirements": len(uncertain_details),
+        "evidence_coverage_percent": evidence_coverage,
+        "low_evidence_coverage": low_coverage,
         "strong_mismatches": len(strong_mismatches),
         "domain_ok": domain_ok,
         "domain_reason": domain_reason,
@@ -2075,9 +2106,9 @@ def german_requirement(text):
             low,
         ):
             return (
-                False,
-                "⚠️ Native German / Muttersprache requested; current level B1",
-                -5,
+                True,
+                "Native German / Muttersprache required; current level B1",
+                -100,
             )
 
     c_patterns = [
@@ -2101,9 +2132,9 @@ def german_requirement(text):
             low,
         ):
             return (
-                True,
-                "German C1/C2/fluent required; current level B1 — rejected",
-                -100,
+                False,
+                "⚠️ German C1/C2/fluent required; current level B1 — review language gap",
+                -5,
             )
 
     very_good_patterns = [

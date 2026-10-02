@@ -1,0 +1,47 @@
+{
+  "description": "Paraphrased actual vacancies from employer/StepStone listings, manually labeled REVIEW as plausible adjacent positions that must not be auto-approved.",
+  "cases": [
+    {
+      "id": "real-2026-telair-data",
+      "expected": "review",
+      "title": "IT Data & Integration Engineer (m/w/d)",
+      "source_url": "https://career.telair.com/IT-Data-Integration-Engineer-mwd-de-j179.html",
+      "location": "Miesbach",
+      "requirements": [
+        "Professional background in data analytics and automated ETL reporting",
+        "Advanced SQL and business intelligence tooling such as Power BI or Qlik",
+        "Experience with data integration middleware and enterprise data systems",
+        "Familiarity with encryption and data access controls",
+        "Python programming is an advantage",
+        "Relevant university qualification in computer science, statistics or mathematics",
+        "German language suitable for business negotiations and English communication"
+      ],
+      "tasks": [
+        "Develop integrated data architectures, analytics pipelines, and Lakehouse connectivity",
+        "Create business intelligence dashboards and automated reporting",
+        "Ensure data quality and secure data exchange between applications"
+      ]
+    },
+    {
+      "id": "real-2026-pmx-kpi",
+      "expected": "review",
+      "title": "SW-Quality Engineer KPI Design (m/w/d)",
+      "source_url": "https://www.stepstone.de/stellenangebote--SW-Quality-Engineer-KPI-Design-m-w-d-Muenchen-PMX-GmbH--14155512-inline.html",
+      "location": "Munich",
+      "requirements": [
+        "Strong knowledge of software quality assurance within automotive development",
+        "Substantial implementation and assessment experience with Automotive SPICE",
+        "Advanced Python scripting for querying APIs and processing development data",
+        "Practical Power BI data modeling and dashboard design",
+        "Understanding of CI/CD, version control and traceability",
+        "Familiarity with SQL or NoSQL data stores",
+        "Experience introducing software quality KPIs and agile working methods"
+      ],
+      "tasks": [
+        "Design software quality KPI definitions aligned with Automotive SPICE",
+        "Extract engineering metrics via REST APIs and build Power BI dashboards",
+        "Analyze process maturity and report software quality risks"
+      ]
+    }
+  ]
+}

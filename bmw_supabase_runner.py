@@ -5,6 +5,8 @@ import sys
 
 import requests
 
+from profile import MATCHER_REVISION
+
 from config import (
     SUPABASE_URL,
     SUPABASE_SECRET_KEY,
@@ -20,7 +22,9 @@ from supabase_store import (
 SOURCE = "bmw"
 SEEN_FILE = "bmw_seen_jobs.json"
 SENT_FILE = "bmw_sent_jobs.json"
-BMW_MATCHER_REVISION = "2026-09-30-b"
+REVIEW_FILE = "bmw_review_jobs.json"
+SENT_DETAILS_FILE = "bmw_sent_details.json"
+BMW_MATCHER_REVISION = MATCHER_REVISION
 TABLE = "arash_jobs"
 
 API_URL = (
@@ -215,6 +219,36 @@ def get_sent_ids():
     return set()
 
 
+def get_sent_details():
+    """Capture metadata of successful BMW notifications for future deduping."""
+    if not os.path.exists(SENT_DETAILS_FILE):
+        return {}
+    with open(SENT_DETAILS_FILE, "r", encoding="utf-8") as file:
+        rows = json.load(file)
+    if not isinstance(rows, list):
+        raise ValueError("BMW sent-details output must be a list")
+    return {
+        str(row["job_id"]): row
+        for row in rows
+        if isinstance(row, dict) and row.get("job_id")
+    }
+
+
+def get_review_jobs():
+    """Read the BMW monitor's per-run review candidates before syncing."""
+    if not os.path.exists(REVIEW_FILE):
+        return {}
+    with open(REVIEW_FILE, "r", encoding="utf-8") as file:
+        rows = json.load(file)
+    if not isinstance(rows, list):
+        raise ValueError("BMW review output must be a list")
+    return {
+        str(row["job_id"]): row
+        for row in rows
+        if isinstance(row, dict) and row.get("job_id")
+    }
+
+
 # ============================================================
 # WRITE MEMORY FOR BMW MONITOR
 # ============================================================
@@ -247,12 +281,16 @@ def sync_to_supabase(
     before_ids,
     after_ids,
     sent_ids,
+    review_jobs=None,
+    sent_details=None,
 ):
 
     processed_ids = (
         after_ids
         - before_ids
     )
+    review_jobs = review_jobs or {}
+    sent_details = sent_details or {}
 
     print()
     print(
@@ -278,10 +316,13 @@ def sync_to_supabase(
                 in sent_ids
             )
 
+            review = review_jobs.get(job_id)
+            metadata = review or sent_details.get(job_id) or {}
             status = (
-                "sent"
-                if sent
-                else revision_status
+                "sent" if sent else (
+                    "review_required@" + BMW_MATCHER_REVISION
+                    if review else revision_status
+                )
             )
 
             if job_exists(
@@ -293,6 +334,12 @@ def sync_to_supabase(
                     job_id,
                     status=status,
                     sent_to_telegram=sent,
+                    match_score=metadata.get("score") if metadata else None,
+                    posted_at=metadata.get("posted_at") if metadata else None,
+                    title=metadata.get("title") if metadata else None,
+                    company=metadata.get("company") if metadata else None,
+                    location=metadata.get("location") if metadata else None,
+                    url=metadata.get("url") if metadata else None,
                 )
                 updated += 1
                 continue
@@ -300,16 +347,14 @@ def sync_to_supabase(
             saved = save_job(
                 source=SOURCE,
                 job_id=job_id,
-                title="",
+                title=metadata.get("title", ""),
                 company="BMW Group",
-                location="",
-                url=(
-                    job_id
-                    if job_id.startswith("http")
-                    else ""
+                location=metadata.get("location", ""),
+                url=metadata.get("url") or (
+                    job_id if job_id.startswith("http") else ""
                 ),
-                posted_at="",
-                match_score=None,
+                posted_at=metadata.get("posted_at", ""),
+                match_score=metadata.get("score"),
                 status=status,
                 sent_to_telegram=sent,
             )
@@ -459,12 +504,16 @@ def main():
     sent_ids = (
         get_sent_ids()
     )
+    review_jobs = get_review_jobs()
+    sent_details = get_sent_details()
 
     inserted, updated, failed = (
         sync_to_supabase(
             current_seen_ids,
             after_ids,
             sent_ids,
+            review_jobs,
+            sent_details,
         )
     )
 

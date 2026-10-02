@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from config import BOT_TOKEN, CHAT_ID
 
 from profile import (
+    MATCHER_REVISION as PROFILE_MATCHER_REVISION,
     ARASH_EXPERIENCE_YEARS,
     MUNICH_AREA,
     SPECIAL_ONSITE_EXCEPTIONS,
@@ -35,6 +36,7 @@ from supabase_store import (
     get_job_record,
     save_job,
     update_job,
+    find_sent_duplicate,
 )
 
 
@@ -44,7 +46,7 @@ from supabase_store import (
 
 VERSION = "V7 CV MATCHER + SUPABASE"
 SOURCE = "linkedin"
-MATCHER_REVISION = "2026-09-30-c"
+MATCHER_REVISION = PROFILE_MATCHER_REVISION
 
 
 SEARCH_URL = (
@@ -511,8 +513,10 @@ def already_seen(job):
         )
 
         if (
-            status.startswith(
-                "rejected_"
+            (
+                status.startswith("rejected_")
+                or status.startswith("review_required")
+                or status.startswith("review_digest_sent")
             )
             and not status.endswith(
                 revision_tag
@@ -2897,6 +2901,12 @@ def main():
         # SCORE
         # ----------------------------------------------------
 
+        if breakdown.get("review_required", False):
+            print("Low confidence: queued for weekly review; no automatic Telegram alert")
+            if remember_job(job, "review_required", score):
+                stored += 1
+            continue
+
         if not breakdown.get(
             "gates_pass",
             False
@@ -2970,6 +2980,21 @@ def main():
 
             continue
 
+
+        # ----------------------------------------------------
+        # CROSS-SOURCE DUPLICATE CHECK
+        # ----------------------------------------------------
+        duplicate = find_sent_duplicate(
+            SOURCE,
+            job.get("title", ""),
+            job.get("company", ""),
+            job.get("location", ""),
+        )
+        if duplicate:
+            print("Cross-source duplicate:", duplicate.get("source", ""), duplicate.get("job_id", ""))
+            if remember_job(job, "duplicate_cross_source", score):
+                stored += 1
+            continue
 
         # ----------------------------------------------------
         # REAL MATCH
