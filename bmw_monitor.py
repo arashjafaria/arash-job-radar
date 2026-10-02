@@ -22,6 +22,8 @@ from profile import (
     SENIOR_MIN_MATCH_PERCENT,
 )
 
+from supabase_store import find_sent_duplicate
+
 from job_matcher import (
     evaluate_fit as cv_evaluate_fit,
     extract_experience_years as cv_extract_experience_years,
@@ -63,6 +65,11 @@ SEEN_FILE = os.path.join(
 SENT_FILE = os.path.join(
     DATA_DIR,
     "bmw_sent_jobs.json"
+)
+
+REVIEW_FILE = os.path.join(
+    DATA_DIR,
+    "bmw_review_jobs.json"
 )
 
 PAGES_TO_SCAN = 5
@@ -1643,6 +1650,7 @@ print(
 
 sent_count = 0
 sent_urls = set()
+review_jobs = []
 
 for job in new_jobs:
 
@@ -1833,8 +1841,7 @@ for job in new_jobs:
         ],
     )
 
-    # Only explicit German C1/C2/fluent/verhandlungssicher is a hard reject.
-    # B2, "very good German", and native/Muttersprache wording are warnings.
+    # Native German is excluded; C1/C2/B2 are visible language-gap warnings.
     score = max(
         0,
         min(
@@ -1869,6 +1876,19 @@ for job in new_jobs:
         "Experience:",
         experience_status
     )
+
+    if breakdown.get("review_required", False):
+        print("Uncertain BMW match: saved for weekly human review")
+        review_jobs.append({
+            "job_id": job["url"],
+            "title": job.get("title", ""),
+            "company": "BMW Group",
+            "location": details.get("location", ""),
+            "url": job["url"],
+            "posted_at": details.get("date_posted", ""),
+            "score": score,
+        })
+        continue
 
     if not breakdown.get(
         "gates_pass",
@@ -1908,6 +1928,15 @@ for job in new_jobs:
 
         continue
 
+    # The two live monitors run separately; check the shared DB before
+    # sending a job that may already have arrived through LinkedIn.
+    duplicate = find_sent_duplicate(
+        "bmw", job.get("title", ""), "BMW Group", details.get("location", "")
+    )
+    if duplicate:
+        print("BMW duplicate already sent via:", duplicate.get("source", ""))
+        continue
+
     message = (
         build_telegram_message(
             job,
@@ -1942,6 +1971,13 @@ for job in new_jobs:
             "Telegram delivery failed; job not marked as sent."
         )
 
+
+with open(
+    REVIEW_FILE,
+    "w",
+    encoding="utf-8"
+) as file:
+    json.dump(review_jobs, file, indent=2, ensure_ascii=False)
 
 with open(
     SENT_FILE,
