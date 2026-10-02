@@ -11,6 +11,7 @@ from playwright.sync_api import sync_playwright
 
 from config import BOT_TOKEN, CHAT_ID
 from profile import (
+    MATCHER_REVISION as PROFILE_MATCHER_REVISION,
     ARASH_EXPERIENCE_YEARS,
     MIN_MATCH_PERCENT,
     SENIOR_MIN_MATCH_PERCENT,
@@ -33,7 +34,7 @@ from supabase_store import (
 )
 
 
-MATCHER_REVISION = "2026-09-30-c"
+MATCHER_REVISION = PROFILE_MATCHER_REVISION
 MAX_AGE_DAYS = 1
 TELEGRAM_LIMIT = 3900
 
