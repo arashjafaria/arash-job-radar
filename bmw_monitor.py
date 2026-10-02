@@ -71,6 +71,10 @@ REVIEW_FILE = os.path.join(
     DATA_DIR,
     "bmw_review_jobs.json"
 )
+SENT_DETAILS_FILE = os.path.join(
+    DATA_DIR,
+    "bmw_sent_details.json"
+)
 
 PAGES_TO_SCAN = 5
 
@@ -1650,6 +1654,7 @@ print(
 
 sent_count = 0
 sent_urls = set()
+sent_details = []
 review_jobs = []
 
 for job in new_jobs:
@@ -1966,6 +1971,15 @@ for job in new_jobs:
         sent_urls.add(
             job["url"]
         )
+        sent_details.append({
+            "job_id": job["url"],
+            "title": job.get("title", ""),
+            "company": "BMW Group",
+            "location": details.get("location", ""),
+            "url": job["url"],
+            "posted_at": details.get("date_posted", ""),
+            "score": score,
+        })
     else:
         print(
             "Telegram delivery failed; job not marked as sent."
@@ -1978,6 +1992,13 @@ with open(
     encoding="utf-8"
 ) as file:
     json.dump(review_jobs, file, indent=2, ensure_ascii=False)
+
+with open(
+    SENT_DETAILS_FILE,
+    "w",
+    encoding="utf-8"
+) as file:
+    json.dump(sent_details, file, indent=2, ensure_ascii=False)
 
 with open(
     SENT_FILE,
