@@ -117,6 +117,25 @@ class TestReviewQueue(unittest.TestCase):
         self.assertEqual("ECU Validation Engineer", kwargs["title"])
         self.assertEqual("Munich", kwargs["location"])
 
+    def test_bmw_sent_metadata_is_saved_for_deduplication(self):
+        record_id = "https://jobs.bmwgroup.com/job/456"
+        sent_details = {record_id: {
+            "title": "ADAS Development Engineer", "company": "BMW Group",
+            "location": "Munich", "url": record_id,
+            "score": 88, "posted_at": "",
+        }}
+        with (
+            patch.object(bmw_runner, "job_exists", return_value=False),
+            patch.object(bmw_runner, "save_job", return_value=True) as save,
+        ):
+            inserted, updated, failed = bmw_runner.sync_to_supabase(
+                set(), {record_id}, {record_id}, {}, sent_details
+            )
+        self.assertEqual((1, 0, 0), (inserted, updated, failed))
+        self.assertEqual("sent", save.call_args.kwargs["status"])
+        self.assertEqual("ADAS Development Engineer", save.call_args.kwargs["title"])
+        self.assertEqual(88, save.call_args.kwargs["match_score"])
+
     def test_bmw_review_is_restored_on_matcher_revision(self):
         rows = [
             {"job_id": "old", "status": "review_required@2026-09-30-b"},
