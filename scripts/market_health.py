@@ -29,6 +29,14 @@ def parse_health(log):
 
 def main():
     data = parse_health(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    audit_path = Path("market_audit.jsonl")
+    if audit_path.exists():
+        audit_rows = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    else:
+        audit_rows = []
+    data["details_extracted"] = sum(row.get("stage") == "parsed" for row in audit_rows)
+    data["scored"] = sum(row.get("stage") == "evaluated" for row in audit_rows)
+    data["healthy"] = data["healthy"] and data["details_extracted"] > 0
     Path("market_health.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     print("Live StepStone validation health:", json.dumps(data))
     if not data["healthy"]:
