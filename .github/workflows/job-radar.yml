@@ -43,6 +43,3 @@ jobs:
         run: |
           python bmw_supabase_runner.py
 
-      - name: Run StepStone and Indeed Radar
-        run: |
-          python public_sources_monitor.py
