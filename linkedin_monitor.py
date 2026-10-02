@@ -35,6 +35,7 @@ from supabase_store import (
     get_job_record,
     save_job,
     update_job,
+    find_sent_duplicate,
 )
 
 
@@ -2978,6 +2979,21 @@ def main():
 
             continue
 
+
+        # ----------------------------------------------------
+        # CROSS-SOURCE DUPLICATE CHECK
+        # ----------------------------------------------------
+        duplicate = find_sent_duplicate(
+            SOURCE,
+            job.get("title", ""),
+            job.get("company", ""),
+            job.get("location", ""),
+        )
+        if duplicate:
+            print("Cross-source duplicate:", duplicate.get("source", ""), duplicate.get("job_id", ""))
+            if remember_job(job, "duplicate_cross_source", score):
+                stored += 1
+            continue
 
         # ----------------------------------------------------
         # REAL MATCH
