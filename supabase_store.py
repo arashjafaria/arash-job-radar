@@ -258,6 +258,10 @@ def update_job(
     status=None,
     sent_to_telegram=None,
     posted_at=None,
+    title=None,
+    company=None,
+    location=None,
+    url=None,
 ):
 
     _check_config()
@@ -292,6 +296,15 @@ def update_job(
             "posted_at"
         ] = posted_at or None
 
+
+    # Optional metadata lets BMW preserve descriptive review candidates
+    # rather than overwriting their title/location with empty placeholders.
+    for key, value in (
+        ("title", title), ("company", company),
+        ("location", location), ("url", url),
+    ):
+        if value is not None:
+            data[key] = value
 
     if not data:
 
