@@ -7,7 +7,6 @@ on:
   push:
     branches:
       - main
-      - improve/regression-safety-and-market-validation
     paths:
       - "market_monitor.py"
       - "job_matcher.py"
