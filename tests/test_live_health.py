@@ -42,29 +42,29 @@ class TestLiveSourceHealth(unittest.TestCase):
 
 class TestDailyStatus(unittest.TestCase):
     @staticmethod
-    def run(at, result="success"):
+    def sample_run(at, result="success"):
         return {"created_at": at.isoformat(), "status": "completed",
                 "head_branch": "main", "conclusion": result}
 
     def test_recent_running_monitors(self):
         now = datetime.now(timezone.utc)
         ok, _ = verify_runs([
-            self.run(now-timedelta(minutes=2)),
-            self.run(now-timedelta(minutes=7)),
+            self.sample_run(now-timedelta(minutes=2)),
+            self.sample_run(now-timedelta(minutes=7)),
         ], now)
         self.assertTrue(ok)
 
     def test_two_failures_raise_health_issue(self):
         now = datetime.now(timezone.utc)
         ok, _ = verify_runs([
-            self.run(now-timedelta(minutes=2), "failure"),
-            self.run(now-timedelta(minutes=7), "failure"),
+            self.sample_run(now-timedelta(minutes=2), "failure"),
+            self.sample_run(now-timedelta(minutes=7), "failure"),
         ], now)
         self.assertFalse(ok)
 
     def test_no_recent_run_is_an_issue(self):
         now = datetime.now(timezone.utc)
-        ok, _ = verify_runs([self.run(now-timedelta(hours=2))], now)
+        ok, _ = verify_runs([self.sample_run(now-timedelta(hours=2))], now)
         self.assertFalse(ok)
 
 
