@@ -29,7 +29,7 @@ from supabase_store import (
     update_job,
 )
 
-REVISION = "2026-09-30-b"
+REVISION = "2026-10-02-a"
 DRY_RUN = __import__("os").getenv("MARKET_DRY_RUN", "0") == "1"
 MAX_JOB_AGE_DAYS = 3
 MAX_NEW_DETAILS_PER_SOURCE = int(
@@ -434,7 +434,7 @@ def should_process(candidate):
     if record.get("sent_to_telegram") or status == "sent":
         return False
     tag = "@" + REVISION
-    if status.startswith("rejected_") and not status.endswith(tag):
+    if (status.startswith("rejected_") or status.startswith("review_required") or status.startswith("review_digest_sent")) and not status.endswith(tag):
         print("  Rechecking old rejection after matcher update.")
         return True
     return False
@@ -667,6 +667,11 @@ def evaluate_candidate(page, candidate):
     )
     score = max(0, min(100, score))
     print("  Score:", score, "| req:", breakdown.get("requirements", 0), "| core:", breakdown.get("core_requirements", 0))
+
+    if breakdown.get("review_required", False):
+        print("  REVIEW REQUIRED: uncertain requirements; no automatic Telegram")
+        remember(candidate, details, "review_required", score)
+        return False
 
     if not breakdown.get("gates_pass", False):
         print(
