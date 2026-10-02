@@ -1302,6 +1302,11 @@ def evaluate_job(job):
 
 
 def main():
+    # Legacy collector is intentionally disabled. The market-radar workflow
+    # is the only supported validation path for external job boards.
+    if os.getenv("ENABLE_LEGACY_PUBLIC_SOURCES") != "1":
+        print("Legacy StepStone/Indeed collector disabled; use market-radar workflow.")
+        return
     print()
     print("=" * 70)
     print("ARASH PUBLIC JOB SOURCES - STEPSTONE + INDEED")
