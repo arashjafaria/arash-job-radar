@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - improve/regression-safety-and-market-validation
     paths:
       - "market_monitor.py"
       - "job_matcher.py"
@@ -69,6 +70,7 @@ jobs:
           path: |
             market_scan.log
             market_health.json
+            market_audit.jsonl
           if-no-files-found: warn
           retention-days: 30
 
