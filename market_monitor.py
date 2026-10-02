@@ -501,7 +501,7 @@ def audit_candidate(candidate, details, stage, score=None, breakdown=None):
         "core_evidence": breakdown.get("core_evidence"),
     }
     with open("market_audit.jsonl", "a", encoding="utf-8") as file:
-        file.write(json.dumps(payload, ensure_ascii=False) + "\\n")
+        file.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 def send_telegram(text):
