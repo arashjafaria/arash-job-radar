@@ -44,7 +44,7 @@ from supabase_store import (
 
 VERSION = "V7 CV MATCHER + SUPABASE"
 SOURCE = "linkedin"
-MATCHER_REVISION = "2026-09-30-c"
+MATCHER_REVISION = "2026-10-02-a"
 
 
 SEARCH_URL = (
@@ -511,8 +511,10 @@ def already_seen(job):
         )
 
         if (
-            status.startswith(
-                "rejected_"
+            (
+                status.startswith("rejected_")
+                or status.startswith("review_required")
+                or status.startswith("review_digest_sent")
             )
             and not status.endswith(
                 revision_tag
@@ -2896,6 +2898,12 @@ def main():
         # ----------------------------------------------------
         # SCORE
         # ----------------------------------------------------
+
+        if breakdown.get("review_required", False):
+            print("Low confidence: queued for weekly review; no automatic Telegram alert")
+            if remember_job(job, "review_required", score):
+                stored += 1
+            continue
 
         if not breakdown.get(
             "gates_pass",
