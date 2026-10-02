@@ -38,6 +38,20 @@ class TestMatchingCases(unittest.TestCase):
                 )
                 self.assertEqual(case["expected"], predicted, decision)
 
+    def test_observed_real_postings_do_not_autopass(self):
+        real_file = Path(__file__).parent / "fixtures" / "real_observed_cases.json"
+        cases = json.loads(real_file.read_text(encoding="utf-8"))["cases"]
+        for case in cases:
+            with self.subTest(real=case["id"]):
+                _, _, _, decision = matcher.evaluate_fit(
+                    case["title"],
+                    " ".join(case["requirements"] + case["tasks"]),
+                    case["requirements"],
+                    case["tasks"],
+                )
+                self.assertFalse(decision["gates_pass"], decision)
+                self.assertTrue(decision["review_required"], decision)
+
     def test_absent_core_requirements_cannot_score_perfect(self):
         _, _, _, decision = matcher.evaluate_fit(
             "System Engineer",
