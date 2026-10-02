@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from config import BOT_TOKEN, CHAT_ID
 
 from profile import (
+    MATCHER_REVISION as PROFILE_MATCHER_REVISION,
     ARASH_EXPERIENCE_YEARS,
     MUNICH_AREA,
     SPECIAL_ONSITE_EXCEPTIONS,
@@ -45,7 +46,7 @@ from supabase_store import (
 
 VERSION = "V7 CV MATCHER + SUPABASE"
 SOURCE = "linkedin"
-MATCHER_REVISION = "2026-10-02-a"
+MATCHER_REVISION = PROFILE_MATCHER_REVISION
 
 
 SEARCH_URL = (
