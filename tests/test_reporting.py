@@ -11,6 +11,7 @@ import bmw_supabase_runner as bmw_runner
 import supabase_store as store
 from scripts import market_health
 from scripts import weekly_report
+from scripts import review_digest
 
 
 class TestLiveHealthParsing(unittest.TestCase):
@@ -40,28 +41,46 @@ class TestLiveHealthParsing(unittest.TestCase):
 
 class TestReviewQueue(unittest.TestCase):
     def test_weekly_summary_labels_dry_run_properly(self):
-        health = {"candidates": 25, "checked": 12, "potential_matches_not_sent": 2, "healthy": True}
-        rows = [{"title": "ECU tester", "company": "Example", "source": "linkedin", "url": "https://example.invalid/job/1"}]
-        message = weekly_report.build_report(health, rows)
-        self.assertIn("DRY RUN ONLY", message)
+        health = {"candidates": 25, "checked": 12, "details_extracted": 9,
+                  "scored": 6, "potential_matches_not_sent": 2, "healthy": True}
+        message = weekly_report.build_report(health)
+        self.assertIn("DRY RUN", message)
         self.assertIn("Potential matches: 2", message)
-        self.assertIn("ECU tester", message)
+        self.assertIn("Descriptions successfully extracted: 9", message)
 
     def test_review_digest_marks_records_only_after_success(self):
-        health = {"candidates": 10, "checked": 10, "potential_matches_not_sent": 0, "healthy": True}
-        rows = [{"source": "linkedin", "job_id": "x", "title": "Engineer", "url": "https://example.invalid"}]
+        rows = [{"source": "linkedin", "job_id": "x", "title": "Engineer",
+                 "company": "Example", "url": "https://example.invalid"}]
         reply = MagicMock()
         with (
-            patch.dict(os.environ, {"MARKET_DRY_RUN": "1", "BOT_TOKEN": "dummy", "CHAT_ID": "dummy"}),
-            patch.object(weekly_report.Path, "read_text", return_value=json.dumps(health)),
-            patch.object(weekly_report, "query_reviews", return_value=rows),
-            patch.object(weekly_report.requests, "post", return_value=reply) as send,
-            patch.object(weekly_report, "update_job") as update,
+            patch.dict(os.environ, {"BOT_TOKEN": "dummy", "CHAT_ID": "dummy"}),
+            patch.object(review_digest, "pending_reviews", return_value=rows),
+            patch.object(review_digest.requests, "post", return_value=reply) as send,
+            patch.object(review_digest, "update_job") as update,
         ):
-            weekly_report.main()
+            review_digest.main()
         reply.raise_for_status.assert_called_once()
         send.assert_called_once()
         update.assert_called_once()
+
+    def test_empty_review_queue_sends_nothing(self):
+        with (
+            patch.object(review_digest, "pending_reviews", return_value=[]),
+            patch.object(review_digest.requests, "post") as send,
+        ):
+            review_digest.main()
+        send.assert_not_called()
+
+    def test_review_digest_does_not_mark_items_not_in_message(self):
+        rows = [
+            {"source": "linkedin", "job_id": str(i), "title": "A" * 100,
+             "company": "B" * 60, "url": "https://example.invalid/" + ("x" * 500)}
+            for i in range(10)
+        ]
+        message, included = review_digest.build_digest(rows)
+        self.assertLessEqual(len(message), 3900)
+        self.assertGreater(len(included), 0)
+        self.assertLess(len(included), len(rows))
 
     def test_legacy_collector_stays_off_without_explicit_opt_in(self):
         with (
