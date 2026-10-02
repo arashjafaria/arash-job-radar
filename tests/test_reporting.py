@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, patch
 import linkedin_monitor as linkedin
 import market_monitor as market
 import public_sources_monitor as legacy
+import bmw_supabase_runner as bmw_runner
+import supabase_store as store
 from scripts import market_health
 from scripts import weekly_report
 
@@ -94,6 +96,44 @@ class TestReviewQueue(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual("review_required", remember.call_args.args[2])
         notify.assert_not_called()
+
+    def test_bmw_review_is_written_with_title_and_location(self):
+        record_id = "https://jobs.bmwgroup.com/job/123"
+        reviews = {record_id: {
+            "title": "ECU Validation Engineer", "company": "BMW Group",
+            "location": "Munich", "url": record_id,
+            "score": 45, "posted_at": "",
+        }}
+        with (
+            patch.object(bmw_runner, "job_exists", return_value=False),
+            patch.object(bmw_runner, "save_job", return_value=True) as save,
+        ):
+            inserted, updated, failed = bmw_runner.sync_to_supabase(
+                set(), {record_id}, set(), reviews
+            )
+        self.assertEqual((1, 0, 0), (inserted, updated, failed))
+        kwargs = save.call_args.kwargs
+        self.assertEqual("review_required@2026-10-02-a", kwargs["status"])
+        self.assertEqual("ECU Validation Engineer", kwargs["title"])
+        self.assertEqual("Munich", kwargs["location"])
+
+    def test_bmw_review_is_restored_on_matcher_revision(self):
+        rows = [
+            {"job_id": "old", "status": "review_required@2026-09-30-b"},
+            {"job_id": "current", "status": "review_required@2026-10-02-a"},
+            {"job_id": "sent", "status": "sent", "sent_to_telegram": True},
+        ]
+        self.assertEqual({"current", "sent"}, bmw_runner.get_current_seen_ids(rows))
+
+    def test_supabase_update_preserves_review_metadata(self):
+        response = MagicMock(status_code=204)
+        with patch.object(store, "_check_config"), patch.object(store, "_request", return_value=response) as send:
+            store.update_job(
+                "bmw", "sample", status="review_required@2026-10-02-a",
+                title="Verification Engineer", location="Munich", url="https://example.invalid",
+            )
+        self.assertEqual("Verification Engineer", send.call_args.kwargs["json"]["title"])
+        self.assertEqual("Munich", send.call_args.kwargs["json"]["location"])
 
     def test_old_review_is_rechecked_when_matcher_changes(self):
         with (
