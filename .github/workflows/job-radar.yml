@@ -41,5 +41,9 @@ jobs:
 
       - name: Run BMW Job Radar with Supabase
         run: |
-          python bmw_supabase_runner.py
+          set -o pipefail
+          python bmw_supabase_runner.py | tee bmw_run.log
+
+      - name: Validate that BMW source and database actually worked
+        run: python -m scripts.live_health bmw bmw_run.log
 
