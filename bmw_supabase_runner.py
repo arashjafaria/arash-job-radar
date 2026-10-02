@@ -5,6 +5,8 @@ import sys
 
 import requests
 
+from profile import MATCHER_REVISION
+
 from config import (
     SUPABASE_URL,
     SUPABASE_SECRET_KEY,
@@ -21,7 +23,7 @@ SOURCE = "bmw"
 SEEN_FILE = "bmw_seen_jobs.json"
 SENT_FILE = "bmw_sent_jobs.json"
 REVIEW_FILE = "bmw_review_jobs.json"
-BMW_MATCHER_REVISION = "2026-10-02-a"
+BMW_MATCHER_REVISION = MATCHER_REVISION
 TABLE = "arash_jobs"
 
 API_URL = (
