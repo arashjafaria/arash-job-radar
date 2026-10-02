@@ -1369,12 +1369,19 @@ def evaluate_requirements(
         and item["weight"] > 0
     ]
 
-    if core_details:
-        core_fit = _weighted_score(
-            core_details
-        )
+    # A transferable activity (for example generic stakeholder coordination
+    # or "testing" in an undisclosed domain) is not proof that the role's
+    # core technical requirements are met. Require specific evidence from
+    # the candidate's documented skills / experience domain.
+    verified_core_details = [
+        item
+        for item in core_details
+        if item.get("category") in {"core-technical", "experience-domain"}
+        and item.get("score", 0) >= 70
+    ]
+    if verified_core_details:
+        core_fit = _weighted_score(core_details)
     else:
-        # Do not award a perfect score when there is no verified core evidence.
         core_fit = 0
 
     return (
@@ -1382,7 +1389,7 @@ def evaluate_requirements(
         core_fit,
         details,
         bool(scored_details),
-        bool(core_details),
+        bool(verified_core_details),
     )
 
 
