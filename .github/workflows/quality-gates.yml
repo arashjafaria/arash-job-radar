@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: quality-gates-${{ github.ref }}
@@ -55,6 +56,37 @@ jobs:
               --request POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
               --data-urlencode "chat_id=${CHAT_ID}" \
               --data-urlencode "text=⚠️ Job Radar offline regression FAILED. Check ${RUN_URL}"
+          else
+            echo "::warning::Telegram alert secrets not configured"
+          fi
+
+  daily-source-health:
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install requests
+      - name: Independently check both running production sources
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m scripts.daily_health
+
+      - name: Send at most one daily health alert
+        if: failure()
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
+            curl --fail --silent --show-error --retry 2 \
+              --request POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${CHAT_ID}" \
+              --data-urlencode "text=⚠️ Daily Job Radar health check failed. Check ${RUN_URL}"
           else
             echo "::warning::Telegram alert secrets not configured"
           fi
