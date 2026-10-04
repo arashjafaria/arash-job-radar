@@ -33,9 +33,22 @@ class TestLiveSourceHealth(unittest.TestCase):
         okay, detail = assess_log("linkedin", log)
         self.assertTrue(okay, detail)
 
-    def test_linkedin_partial_block_is_not_success(self):
+    def test_linkedin_single_429_is_degraded_but_usable(self):
         log = "TOTAL UNIQUE LINKEDIN JOBS: 30\nLINKEDIN + SUPABASE SUMMARY\n"
         log += "HTTP: 200 | bytes: 33333\n" * 4 + "HTTP: 429 | bytes: 0\n"
+        okay, detail = assess_log("linkedin", log)
+        self.assertTrue(okay, detail)
+        self.assertTrue(detail.startswith("DEGRADED:"))
+
+    def test_linkedin_two_429s_are_failure(self):
+        log = "TOTAL UNIQUE LINKEDIN JOBS: 20\nLINKEDIN + SUPABASE SUMMARY\n"
+        log += "HTTP: 200 | bytes: 33333\n" * 3 + "HTTP: 429 | bytes: 0\n" * 2
+        okay, _ = assess_log("linkedin", log)
+        self.assertFalse(okay)
+
+    def test_linkedin_single_non_429_failure_is_failure(self):
+        log = "TOTAL UNIQUE LINKEDIN JOBS: 30\nLINKEDIN + SUPABASE SUMMARY\n"
+        log += "HTTP: 200 | bytes: 33333\n" * 4 + "HTTP: 403 | bytes: 0\n"
         okay, _ = assess_log("linkedin", log)
         self.assertFalse(okay)
 
