@@ -18,13 +18,44 @@ def assess_log(source, log):
         match = re.search(r"TOTAL UNIQUE LINKEDIN JOBS:\s*(\d+)", log)
         count = int(match.group(1)) if match else 0
         search_http = re.findall(r"^\s*HTTP:\s*(\d+)", log, re.MULTILINE)
-        good = (
+        summary_present = "LINKEDIN + SUPABASE SUMMARY" in log
+
+        successful = sum(code == "200" for code in search_http)
+        transient_429 = sum(code == "429" for code in search_http)
+
+        fully_healthy = (
             count > 0
             and len(search_http) == 5
-            and all(code == "200" for code in search_http)
-            and "LINKEDIN + SUPABASE SUMMARY" in log
+            and successful == 5
+            and summary_present
         )
-        return good, f"LinkedIn unique jobs={count}; search HTTP statuses={search_http}"
+
+        # LinkedIn occasionally rate-limits a single one of the five rotating
+        # searches. Treat exactly one HTTP 429 as a degraded-but-usable scan
+        # when the other four searches succeeded and the monitor still
+        # produced jobs. Persistent or broader blocking remains a hard failure.
+        degraded_usable = (
+            count > 0
+            and len(search_http) == 5
+            and successful == 4
+            and transient_429 == 1
+            and summary_present
+        )
+
+        if fully_healthy:
+            return True, (
+                f"LinkedIn unique jobs={count}; search HTTP statuses={search_http}"
+            )
+
+        if degraded_usable:
+            return True, (
+                "DEGRADED: one transient LinkedIn HTTP 429 tolerated; "
+                f"unique jobs={count}; search HTTP statuses={search_http}"
+            )
+
+        return False, (
+            f"LinkedIn unique jobs={count}; search HTTP statuses={search_http}"
+        )
     raise ValueError("Unknown live source")
 
 
@@ -32,6 +63,8 @@ def main():
     source, filename = sys.argv[1:3]
     success, description = assess_log(source, Path(filename).read_text(encoding="utf-8"))
     print("Live monitor health:", description)
+    if description.startswith("DEGRADED:"):
+        print("::warning::" + description)
     if not success:
         raise SystemExit(source + " source scan incomplete/failed; do not mark Action successful")
 
