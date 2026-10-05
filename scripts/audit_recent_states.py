@@ -26,4 +26,4 @@ print("\nTARGETED TITLES")
 for x in rows:
     title=(x.get("title") or "").lower()
     if "canoe" in title or "system architect" in title or "test automation" in title:
-        print("TARGET",x.get("id"),"|",x.get("source"),"|",x.get("job_id"),"|",x.get("status"),"| score",x.get("match_score"),"|",x.get("posted_at"),"|",x.get("title"))
+        print("TARGET",x.get("id"),"|",x.get("source"),"|",x.get("job_id"),"|",x.get("status"),"| score",x.get("match_score"),"|",x.get("posted_at"),"| location",x.get("location"),"|",x.get("title"))
