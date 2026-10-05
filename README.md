@@ -5,7 +5,7 @@
 | Pipeline | GitHub workflow | Schedule | Telegram job alerts |
 |---|---|---|---|
 | BMW | `job-radar.yml` | External five-minute dispatcher | Yes, for eligible matches |
-| LinkedIn | `linkedin-radar.yml` | External five-minute dispatcher (offset) | Yes, for eligible matches |
+| LinkedIn | `linkedin-radar.yml` | External five-minute dispatcher, internally gated to real scans every 15 minutes | Yes, for eligible matches |
 | StepStone | `market-radar.yml` | Mondays 06:00 UTC, or safe manual dry run | **No** — dry run only |
 | Indeed | No production activation | None | **No** — known HTTP 403 |
 | Regression & independent source health | `quality-gates.yml` | Every relevant code change and daily 05:45 UTC | Only on daily failure |
@@ -25,6 +25,8 @@ The legacy `public_sources_monitor.py` is deliberately absent from the BMW workf
 ## Health, reliability and known limits
 
 - BMW and LinkedIn workflows now fail when actual source activity is missing or their evidence of a successful scan is absent. The separate daily quality workflow checks recent production runs and issues at most one scheduled health alert per day.
+- LinkedIn local discovery is scoped to Munich with a 100-mile (~161 km) radius so Germany-wide first-page results do not crowd local vacancies out. A separate Germany-wide remote-filter sample runs once per hour.
+- LinkedIn HTTP 429 handling now honors `Retry-After` when numeric, retries once with a capped wait, and stops the local scan after two persistent 429 responses. A single persistent 429 remains degraded-but-usable; broader blocking is a hard failure and triggers a Telegram health alert.
 - Supabase stores seen/sent/review states. The revised BMW bridge retains job titles and locations for future cross-source duplicate checks. Alerts are sent only after an additional best-effort cross-source duplicate lookup.
 - **Concurrent notification delivery is not fully atomic**. A rare duplicate is still possible if two sources send the same vacancy simultaneously or Telegram succeeds before a failed Supabase write. Full exactly-once delivery would require a transactional database claim/outbox design.
 - Real websites may change markup, apply rate limits, or restrict automated access. A green workflow means the health gate passed; it does not establish that matching recommendations are perfect.
