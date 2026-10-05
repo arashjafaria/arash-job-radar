@@ -95,20 +95,48 @@ SEARCH_QUERY_GROUPS = [
     ],
 ]
 
+# The external dispatcher still fires every five minutes, but the workflow now
+# gates real LinkedIn scans to 15-minute boundaries. Rotate one local query
+# group per real scan so all four groups are covered once per hour.
+LOCAL_SCAN_INTERVAL_SECONDS = 900
+
 SEARCH_QUERIES = SEARCH_QUERY_GROUPS[
-    int(time.time() // 300)
+    int(time.time() // LOCAL_SCAN_INTERVAL_SECONDS)
     % len(SEARCH_QUERY_GROUPS)
 ]
 
-LOCATION_QUERY = "Germany"
+# Search locally first instead of letting Germany-wide first-page results
+# crowd Munich-area vacancies out before our location filter sees them.
+LOCATION_QUERY = "Munich, Bavaria, Germany"
+LOCATION_DISTANCE_MILES = 100
+
+# Separate, lower-frequency Germany-wide remote discovery. These broad terms
+# run once per hour and use LinkedIn's remote-work filter.
+REMOTE_LOCATION_QUERY = "Germany"
+REMOTE_SEARCH_QUERIES = [
+    "Automotive Test Engineer",
+    "System Integration Engineer",
+    "ECU Diagnostics Engineer",
+    "ADAS Test Engineer",
+    "Software Test Engineer",
+]
+REMOTE_SCAN_EVERY_LOCAL_RUNS = 4
+RUN_REMOTE_SEARCH = (
+    int(time.time() // LOCAL_SCAN_INTERVAL_SECONDS)
+    % REMOTE_SCAN_EVERY_LOCAL_RUNS
+    == 0
+)
 
 # Last 24 hours
 FRESH_SECONDS = 86400
 
 MIN_MATCH_SCORE = MIN_MATCH_PERCENT
 
-SEARCH_DELAY_SECONDS = 2.5
+SEARCH_DELAY_SECONDS = 3.5
 DETAIL_DELAY_SECONDS = 2.5
+
+RATE_LIMIT_RETRY_DEFAULT_SECONDS = 20
+RATE_LIMIT_RETRY_MAX_SECONDS = 60
 
 TELEGRAM_LIMIT = 3900
 
@@ -473,6 +501,25 @@ def already_seen(job):
         ):
 
             return True
+
+        # A Germany-wide remote-filter hit deserves one recheck when the same
+        # LinkedIn ID was previously rejected before details solely because its
+        # card showed a non-Munich city. After that remote-aware recheck, we use
+        # rejected_location_remote so it does not loop forever.
+        if (
+            job.get("remote_search")
+            and status.startswith(
+                "rejected_location@"
+            )
+        ):
+
+            print(
+                "Rechecking previous location rejection "
+                "via LinkedIn remote filter:",
+                job["job_id"]
+            )
+
+            return False
 
         stored_posted = (
             record.get(
@@ -1565,8 +1612,9 @@ def extract_job_id_from_card(
 # LINKEDIN SEARCH
 # ============================================================
 
-def search_linkedin_jobs(
-    keyword
+def build_search_params(
+    keyword,
+    remote_only=False,
 ):
 
     params = {
@@ -1575,7 +1623,11 @@ def search_linkedin_jobs(
             keyword,
 
         "location":
-            LOCATION_QUERY,
+            (
+                REMOTE_LOCATION_QUERY
+                if remote_only
+                else LOCATION_QUERY
+            ),
 
         "f_TPR":
             f"r{FRESH_SECONDS}",
@@ -1588,6 +1640,70 @@ def search_linkedin_jobs(
     }
 
 
+    if remote_only:
+
+        # LinkedIn remote-work filter.
+        params["f_WT"] = "2"
+
+    else:
+
+        # LinkedIn distance is expressed in miles. 100 miles is roughly
+        # 161 km, close to the user's intended ~150 km Munich radius.
+        params["distance"] = LOCATION_DISTANCE_MILES
+
+
+    return params
+
+
+def retry_after_seconds(
+    response
+):
+
+    raw = (
+        response.headers.get(
+            "Retry-After",
+            ""
+        )
+        or ""
+    ).strip()
+
+
+    try:
+
+        seconds = int(
+            raw
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+
+        seconds = (
+            RATE_LIMIT_RETRY_DEFAULT_SECONDS
+        )
+
+
+    return max(
+        1,
+        min(
+            RATE_LIMIT_RETRY_MAX_SECONDS,
+            seconds,
+        )
+    )
+
+
+def search_linkedin_jobs(
+    keyword,
+    remote_only=False,
+):
+
+    params = build_search_params(
+        keyword,
+        remote_only=remote_only,
+    )
+
+
     url = (
         SEARCH_URL
         + "?"
@@ -1597,25 +1713,72 @@ def search_linkedin_jobs(
     )
 
 
-    try:
+    response = None
 
-        response = SESSION.get(
-            url,
-            timeout=12
-        )
 
-    except Exception as exc:
+    for attempt in range(2):
 
-        print(
-            "  Search error:",
-            exc
-        )
+        try:
 
-        return []
+            response = SESSION.get(
+                url,
+                timeout=12
+            )
+
+        except Exception as exc:
+
+            print(
+                "  Search error:",
+                exc
+            )
+
+            return (
+                [],
+                None,
+            )
+
+
+        if (
+            response.status_code
+            != 429
+        ):
+
+            break
+
+
+        if attempt == 0:
+
+            wait_seconds = (
+                retry_after_seconds(
+                    response
+                )
+            )
+
+            print(
+                "  LinkedIn rate limit (429). "
+                f"Retrying once after {wait_seconds}s."
+            )
+
+            time.sleep(
+                wait_seconds
+            )
+
+            continue
+
+
+        break
+
+
+    http_label = (
+        "REMOTE HTTP:"
+        if remote_only
+        else "HTTP:"
+    )
 
 
     print(
-        "  HTTP:",
+        " ",
+        http_label,
         response.status_code,
         "| bytes:",
         len(response.text)
@@ -1625,15 +1788,21 @@ def search_linkedin_jobs(
     if response.status_code == 429:
 
         print(
-            "  LinkedIn rate limit."
+            "  LinkedIn rate limit persisted after retry."
         )
 
-        return []
+        return (
+            [],
+            429,
+        )
 
 
     if response.status_code != 200:
 
-        return []
+        return (
+            [],
+            response.status_code,
+        )
 
 
     soup = BeautifulSoup(
@@ -1769,10 +1938,16 @@ def search_linkedin_jobs(
 
             "query":
                 keyword,
+
+            "remote_search":
+                remote_only,
         })
 
 
-    return jobs
+    return (
+        jobs,
+        response.status_code,
+    )
 
 
 # ============================================================
@@ -2430,6 +2605,8 @@ def main():
 
     all_jobs = {}
 
+    local_rate_limit_failures = 0
+
 
     for number, query in enumerate(
         SEARCH_QUERIES,
@@ -2445,7 +2622,10 @@ def main():
         )
 
 
-        jobs = search_linkedin_jobs(
+        (
+            jobs,
+            search_status,
+        ) = search_linkedin_jobs(
             query
         )
 
@@ -2463,6 +2643,25 @@ def main():
             ] = job
 
 
+        if search_status == 429:
+
+            local_rate_limit_failures += 1
+
+
+            if (
+                local_rate_limit_failures
+                >= 2
+            ):
+
+                print(
+                    "LinkedIn rate-limit circuit breaker: "
+                    "two local searches remained blocked after retry. "
+                    "Stopping this scan."
+                )
+
+                break
+
+
         if number < len(
             SEARCH_QUERIES
         ):
@@ -2470,6 +2669,89 @@ def main():
             time.sleep(
                 SEARCH_DELAY_SECONDS
             )
+
+
+    if (
+        RUN_REMOTE_SEARCH
+        and local_rate_limit_failures < 2
+    ):
+
+        print()
+
+        print(
+            "=" * 70
+        )
+
+        print(
+            "HOURLY LINKEDIN REMOTE-GERMANY SEARCH"
+        )
+
+        print(
+            "=" * 70
+        )
+
+
+        for number, query in enumerate(
+            REMOTE_SEARCH_QUERIES,
+            start=1
+        ):
+
+            print()
+
+            print(
+                f"Remote searching "
+                f"[{number}/{len(REMOTE_SEARCH_QUERIES)}]: "
+                f"{query}"
+            )
+
+
+            (
+                jobs,
+                search_status,
+            ) = search_linkedin_jobs(
+                query,
+                remote_only=True,
+            )
+
+
+            print(
+                "Remote found:",
+                len(jobs)
+            )
+
+
+            for job in jobs:
+
+                # Keep a local hit when the same vacancy appeared in both
+                # searches; local evidence is already sufficient.
+                if (
+                    job["job_id"]
+                    not in all_jobs
+                ):
+
+                    all_jobs[
+                        job["job_id"]
+                    ] = job
+
+
+            if search_status == 429:
+
+                print(
+                    "Remote-search circuit breaker: "
+                    "rate limit persisted after retry. "
+                    "Skipping the remaining remote queries this hour."
+                )
+
+                break
+
+
+            if number < len(
+                REMOTE_SEARCH_QUERIES
+            ):
+
+                time.sleep(
+                    SEARCH_DELAY_SECONDS
+                )
 
 
     print()
@@ -2587,12 +2869,23 @@ def main():
         # LOCATION PRECHECK
         # ----------------------------------------------------
 
-        (
-            location_candidate,
-            pre_location_status,
-        ) = location_precheck(
-            job["location"]
-        )
+        if job.get(
+            "remote_search"
+        ):
+
+            location_candidate = True
+            pre_location_status = (
+                "LinkedIn remote-filter candidate"
+            )
+
+        else:
+
+            (
+                location_candidate,
+                pre_location_status,
+            ) = location_precheck(
+                job["location"]
+            )
 
 
         if not location_candidate:
@@ -2719,7 +3012,13 @@ def main():
 
             if remember_job(
                 job,
-                "rejected_location"
+                (
+                    "rejected_location_remote"
+                    if job.get(
+                        "remote_search"
+                    )
+                    else "rejected_location"
+                )
             ):
 
                 stored += 1

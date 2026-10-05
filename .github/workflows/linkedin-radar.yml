@@ -2,6 +2,12 @@ name: Arash LinkedIn Job Radar
 
 on:
   workflow_dispatch:
+    inputs:
+      force_scan:
+        description: "Run LinkedIn immediately even outside the 15-minute cadence"
+        required: false
+        default: false
+        type: boolean
 
 
 permissions:
@@ -22,23 +28,57 @@ jobs:
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
 
     steps:
+      - name: Gate external five-minute dispatches to a 15-minute LinkedIn cadence
+        id: cadence
+        env:
+          FORCE_SCAN: ${{ github.event.inputs.force_scan }}
+        run: |
+          minute=$(date -u +%M)
+          minute=$((10#$minute))
+          if [ "$FORCE_SCAN" = "true" ] || (( minute % 15 == 0 )); then
+            echo "run_scan=true" >> "$GITHUB_OUTPUT"
+            echo "LinkedIn scan enabled at UTC minute $minute."
+          else
+            echo "run_scan=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping source requests at UTC minute $minute; next 15-minute boundary will scan."
+          fi
+
       - name: Checkout repository
+        if: steps.cadence.outputs.run_scan == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Python
+        if: steps.cadence.outputs.run_scan == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
       - name: Install dependencies
+        if: steps.cadence.outputs.run_scan == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
       - name: Run LinkedIn Job Radar
+        if: steps.cadence.outputs.run_scan == 'true'
         run: |
           set -o pipefail
           python linkedin_monitor.py | tee linkedin_run.log
 
       - name: Verify LinkedIn searches returned usable results
+        if: steps.cadence.outputs.run_scan == 'true'
         run: python -m scripts.live_health linkedin linkedin_run.log
+
+      - name: Alert if a real LinkedIn scan fails
+        if: ${{ failure() && steps.cadence.outputs.run_scan == 'true' }}
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
+            curl --fail --silent --show-error --retry 2 \
+              --request POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${CHAT_ID}" \
+              --data-urlencode "text=⚠️ LinkedIn Job Radar source scan failed or was blocked. ${RUN_URL}"
+          else
+            echo "::warning::Telegram secrets not configured"
+          fi

@@ -52,6 +52,13 @@ class TestLiveSourceHealth(unittest.TestCase):
         okay, _ = assess_log("linkedin", log)
         self.assertFalse(okay)
 
+    def test_optional_remote_http_does_not_change_local_health_count(self):
+        log = "TOTAL UNIQUE LINKEDIN JOBS: 40\nLINKEDIN + SUPABASE SUMMARY\n"
+        log += "HTTP: 200 | bytes: 33333\n" * 5
+        log += "  REMOTE HTTP: 429 | bytes: 0\n"
+        okay, detail = assess_log("linkedin", log)
+        self.assertTrue(okay, detail)
+
 
 class TestDailyStatus(unittest.TestCase):
     @staticmethod
