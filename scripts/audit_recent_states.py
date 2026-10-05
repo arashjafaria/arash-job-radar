@@ -19,6 +19,16 @@ for source in ("linkedin","bmw","stepstone","indeed"):
     for status,count in Counter((x.get("status") or "") for x in src).most_common():
         print(" STATUS",status,count)
     print(" SENT",sum(bool(x.get("sent_to_telegram")) for x in src))
+today=[x for x in rows if x.get("source")=="linkedin" and str(x.get("posted_at") or "").startswith("2026-10-05")]
+print("\nTODAY LINKEDIN rows",len(today))
+for status,count in Counter((x.get("status") or "") for x in today).most_common():
+    print(" TODAY_STATUS",status,count)
+print(" TODAY_SENT",sum(bool(x.get("sent_to_telegram")) for x in today))
+print(" TODAY_REVIEW_ROWS")
+for x in today:
+    if str(x.get("status") or "").startswith("review_"):
+        print(" TODAY_REVIEW",x.get("job_id"),"|",x.get("status"),"| score",x.get("match_score"),"| location",x.get("location"),"|",x.get("title"))
+
 print("\nRECENT LINKEDIN (latest database rows)")
 for x in [r for r in rows if r.get("source")=="linkedin"][:40]:
     print("ROW",x.get("id"),"|",x.get("job_id"),"|",x.get("status"),"| score",x.get("match_score"),"|",x.get("posted_at"),"|",x.get("title"))
