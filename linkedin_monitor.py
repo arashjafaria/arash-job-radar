@@ -552,8 +552,26 @@ def already_seen(job):
 
             return False
 
-        # Re-evaluate old rejected records once whenever matcher rules
-        # change. New rejections are stamped with MATCHER_REVISION.
+        # Existing review_required rows from the current matcher revision
+        # were created before manual-review jobs were sent immediately.
+        # Re-evaluate them once so the user can actually see/review them.
+        current_review_status = (
+            "review_required@"
+            + MATCHER_REVISION
+        )
+
+        if status == current_review_status:
+
+            print(
+                "Rechecking pending manual-review job "
+                "for immediate Telegram notification:",
+                job["job_id"]
+            )
+
+            return False
+
+        # Re-evaluate old rejected/review records once whenever matcher rules
+        # change. New decisions are stamped with MATCHER_REVISION.
         revision_tag = (
             "@"
             + MATCHER_REVISION
@@ -3201,9 +3219,69 @@ def main():
         # ----------------------------------------------------
 
         if breakdown.get("review_required", False):
-            print("Low confidence: queued for weekly review; no automatic Telegram alert")
-            if remember_job(job, "review_required", score):
-                stored += 1
+            print(
+                "Manual review required: sending a clearly labelled "
+                "Telegram notification."
+            )
+
+            review_message = build_message(
+                job,
+                details,
+                score,
+                matched,
+                core_matches,
+                required_years,
+                experience_status,
+                location_status,
+                german_status,
+                cpp_status,
+                employment_status,
+                warnings,
+                breakdown,
+            )
+
+            review_message = review_message.replace(
+                "🚨 NEW LINKEDIN JOB",
+                (
+                    "🟡 MANUAL REVIEW REQUIRED — LINKEDIN\n"
+                    "Promising match, but some core requirements are "
+                    "uncertain. Please review manually."
+                ),
+                1,
+            )
+
+            if TEST_MODE:
+                print(
+                    "TEST REVIEW CANDIDATE - Telegram suppressed."
+                )
+                continue
+
+            telegram_ok = send_long_message(
+                review_message
+            )
+
+            if telegram_ok:
+                sent += 1
+
+                # Keep manual-review notifications distinct from verified
+                # matches. In particular, do not set sent_to_telegram=True:
+                # cross-source duplicate suppression should only use verified
+                # automatic matches.
+                if remember_job(
+                    job,
+                    "review_required_notified",
+                    score,
+                    False,
+                ):
+                    stored += 1
+            else:
+                print(
+                    "Telegram failed for manual-review candidate."
+                )
+                print(
+                    "NOT stored - will retry later."
+                )
+
             continue
 
         if not breakdown.get(
