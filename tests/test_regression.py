@@ -83,6 +83,38 @@ class TestMatchingCases(unittest.TestCase):
         self.assertFalse(decision["review_required"])
 
 
+    def test_teoresi_mbse_adas_exceptional_fit_autopasses(self):
+        requirements = [
+            "Abgeschlossenes Studium (z. B. Elektrotechnik, Mechatronik, Informatik, Systems Engineering) oder vergleichbar",
+            "Erfahrung in E/E-Architektur, Systementwicklung oder Subsystem-Engineering im Automotive-Umfeld",
+            "Verständnis von ADAS-Systemen und deren Integration (Sensorik/Compute/Netzwerk/Schnittstellen)",
+            "Strukturierte Arbeitsweise, Fähigkeit zur technischen Dokumentation und Abstimmung mit Stakeholdern",
+            "Sehr gute Deutsch- oder Englischkenntnisse (je nach Projektumfeld)",
+            "Erfahrung mit MBSE / SysML / UML und gängigen Modellierungs- bzw. Architektur-Tools",
+            "Kenntnisse zu Automotive-Netzwerken (z. B. CAN, Ethernet, FlexRay) und E/E-Topologien (Domain/Zonal/Central Compute)",
+            "Berührungspunkte mit Functional Safety (ISO 26262), Cybersecurity oder Automotive-Prozessen (z. B. ASPICE)",
+            "Erfahrung mit Requirements-/Traceability-Workflows (z. B. DOORS/Polarion/Jama oder vergleichbar)",
+        ]
+        tasks = [
+            "Analyse und Weiterentwicklung von Fahrzeug-E/E-Architekturen mit Fokus auf ADAS-Integration",
+            "Review und Strukturierung bestehender ADAS-Systemarchitekturen (funktional, logisch, physisch)",
+            "Modellbasierte Architekturarbeit im MBSE-Umfeld: Architekturartefakte erstellen, Schnittstellen und Datenflüsse definieren, logische und physische Zuordnungen dokumentieren",
+            "Bewertung von Architektur-Optionen inkl. Vor-/Nachteilen und Ableitung von Empfehlungen gemäß Best Practices",
+            "Zusammenarbeit mit Architektur-Teams (Reviews, Abstimmungen, Standards)",
+            "Erstellung eines Abschlussberichts mit Guidelines & Lessons Learned (inkl. Checklisten/Vorlagen)",
+        ]
+        score, _, _, decision = matcher.evaluate_fit(
+            "MBSE Systems Engineer (m/f/d) – E/E Architecture and ADAS",
+            " ".join(requirements + tasks),
+            requirements,
+            tasks,
+        )
+        self.assertGreaterEqual(score, 90, decision)
+        self.assertTrue(decision["gates_pass"], decision)
+        self.assertTrue(decision["exceptional_fit_override"], decision)
+        self.assertFalse(decision["review_required"], decision)
+
+
 class TestPolicyInvariants(unittest.TestCase):
     def test_native_german_rejected(self):
         reject, detail, _ = matcher.german_requirement("Native German required")
