@@ -1784,6 +1784,32 @@ def evaluate_fit(
         and overall >= MIN_MATCH_PERCENT
     )
 
+    # Rare high-confidence escape hatch for postings where the parser leaves
+    # some requirements unclassified even though the verified evidence is
+    # exceptionally strong. This must stay much stricter than the normal
+    # threshold so manual-review jobs do not flood Telegram.
+    exceptional_fit_pass = (
+        domain_ok
+        and has_scored_requirements
+        and has_core_evidence
+        and not strong_mismatches
+        and len(assessed_requirements) >= 5
+        and evidence_coverage >= 50
+        and len(uncertain_details) <= len(assessed_requirements)
+        and requirement_fit >= 90
+        and core_fit >= 90
+        and role_fit >= 90
+        and overall >= 90
+    )
+
+    if exceptional_fit_pass and not normal_pass:
+        warnings.append(
+            "⚠️ Exceptional-fit auto-pass: verified requirements/core/role "
+            "are very strong despite some unclassified requirements"
+        )
+
+    normal_pass = normal_pass or exceptional_fit_pass
+
     # No automatic notification when core evidence is missing or the
     # parser is uncertain and the normal gates did not pass. Preserve these
     # opportunities in a distinct human-review queue instead of silently
@@ -1816,6 +1842,7 @@ def evaluate_fit(
         "overall": overall,
         "gates_pass": gates_pass,
         "fail_open": fail_open,
+        "exceptional_fit_override": exceptional_fit_pass,
         "review_required": review_required,
         "requirements_evidence": has_scored_requirements,
         "core_evidence": has_core_evidence,
