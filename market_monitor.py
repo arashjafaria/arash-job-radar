@@ -446,7 +446,13 @@ def remember(candidate, details, status, score=None, sent=False):
         return
 
     stored_status = "sent" if sent else (
-        status + "@" + REVISION if status.startswith("rejected_") else status
+        status + "@" + REVISION
+        if (
+            status.startswith("rejected_")
+            or status.startswith("review_required")
+            or status.startswith("review_digest_sent")
+        )
+        else status
     )
     details = details or {}
     payload = {
@@ -698,8 +704,53 @@ def evaluate_candidate(page, candidate):
     audit_candidate(candidate, details, "evaluated", score, breakdown)
 
     if breakdown.get("review_required", False):
-        print("  REVIEW REQUIRED: uncertain requirements; no automatic Telegram")
-        remember(candidate, details, "review_required", score)
+        print(
+            "  REVIEW REQUIRED: sending a clearly labelled "
+            "Telegram notification"
+        )
+
+        review_message = build_message(
+            candidate,
+            details,
+            score,
+            matched,
+            years,
+            exp_text,
+            loc_text,
+            german_text,
+            contract_text,
+            skill_warnings + cv_security_warnings(full_text),
+            breakdown,
+        )
+
+        review_message = review_message.replace(
+            f"🚨 NEW {candidate['source_name']} JOB",
+            (
+                f"🟡 MANUAL REVIEW REQUIRED — {candidate['source_name']}\n"
+                "Promising match, but some core requirements are "
+                "uncertain. Please review manually."
+            ),
+            1,
+        )
+
+        if DRY_RUN:
+            print("  DRY RUN: manual-review Telegram suppressed.")
+            return False
+
+        if send_long(review_message):
+            remember(
+                candidate,
+                details,
+                "review_required_notified",
+                score,
+                False,
+            )
+        else:
+            print(
+                "  Telegram failed for manual-review candidate; "
+                "not stored so it can retry."
+            )
+
         return False
 
     if not breakdown.get("gates_pass", False):
