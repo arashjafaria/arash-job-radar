@@ -92,7 +92,7 @@ class TestReviewQueue(unittest.TestCase):
         stepstone.assert_not_called()
         indeed.assert_not_called()
 
-    def test_matcher_review_queue_does_not_notify_market_telegram(self):
+    def test_matcher_review_queue_notifies_market_telegram_once(self):
         candidate = {"source": "stepstone", "source_name": "STEPSTONE", "job_id": "fake", "url": "https://example.invalid"}
         details = {
             "title": "System Engineer", "company": "Example GmbH",
@@ -101,6 +101,7 @@ class TestReviewQueue(unittest.TestCase):
             "tasks": ["Coordinate projects"], "other": [],
         }
         with (
+            patch.object(market, "DRY_RUN", False),
             patch.object(market, "get_job_details", return_value=details),
             patch.object(market, "cv_location_status", return_value=(True, "Munich")),
             patch.object(market, "cv_extract_candidate_experience_years", return_value=None),
@@ -109,12 +110,12 @@ class TestReviewQueue(unittest.TestCase):
             patch.object(market, "cv_german_requirement", return_value=(False, "No level", 0)),
             patch.object(market, "cv_evaluate_fit", return_value=(0, [], [], {"review_required": True, "gates_pass": False})),
             patch.object(market, "remember") as remember,
-            patch.object(market, "send_telegram") as notify,
+            patch.object(market, "send_long", return_value=True) as notify,
         ):
             result = market.evaluate_candidate(MagicMock(), candidate)
         self.assertFalse(result)
-        self.assertEqual("review_required", remember.call_args.args[2])
-        notify.assert_not_called()
+        self.assertEqual("review_required_notified", remember.call_args.args[2])
+        notify.assert_called_once()
 
     def test_bmw_review_is_written_with_title_and_location(self):
         record_id = "https://jobs.bmwgroup.com/job/123"
@@ -180,10 +181,17 @@ class TestReviewQueue(unittest.TestCase):
         ):
             self.assertFalse(linkedin.already_seen({"job_id": "old", "posted": ""}))
 
-    def test_current_review_does_not_repeat_every_five_minutes(self):
+    def test_current_unnotified_review_is_rechecked_once_for_telegram(self):
         with (
             patch.object(linkedin, "TEST_MODE", False),
             patch.object(linkedin, "get_job_record", return_value={"status": "review_required@2026-10-02-a", "sent_to_telegram": False}),
+        ):
+            self.assertFalse(linkedin.already_seen({"job_id": "new", "posted": ""}))
+
+    def test_current_notified_review_does_not_repeat(self):
+        with (
+            patch.object(linkedin, "TEST_MODE", False),
+            patch.object(linkedin, "get_job_record", return_value={"status": "review_required_notified@2026-10-02-a", "sent_to_telegram": False}),
         ):
             self.assertTrue(linkedin.already_seen({"job_id": "new", "posted": ""}))
 
