@@ -4,7 +4,7 @@
 # Updated: 2026-09-28
 # ============================================================
 
-MATCHER_REVISION = "2026-10-02-a"
+MATCHER_REVISION = "2026-10-06-b"
 
 ARASH_EXPERIENCE_YEARS = 3.0
 MAX_REQUIRED_EXPERIENCE_YEARS = 3
