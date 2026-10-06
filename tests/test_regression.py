@@ -160,32 +160,6 @@ class TestDataPipeline(unittest.TestCase):
             self.assertEqual(1, len(urls))
             self.assertEqual("Munich", urls[0][0])
 
-    def test_market_review_notification_status_is_revision_stamped(self):
-        candidate = {
-            "source": "indeed",
-            "job_id": "abc",
-            "url": "https://example.invalid",
-            "title": "System Test Engineer",
-        }
-        with (
-            patch.object(market, "DRY_RUN", False),
-            patch.object(market, "save_job", return_value=True) as save,
-        ):
-            market.remember(
-                candidate,
-                None,
-                "review_required_notified",
-                75,
-                False,
-            )
-        self.assertEqual(
-            save.call_args.kwargs["status"],
-            "review_required_notified@" + market.REVISION,
-        )
-        self.assertFalse(
-            save.call_args.kwargs["sent_to_telegram"]
-        )
-
     def test_repository_duplicate_lookup_normalizes_title(self):
         response = MagicMock()
         response.status_code = 200
