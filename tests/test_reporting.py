@@ -132,7 +132,7 @@ class TestReviewQueue(unittest.TestCase):
             )
         self.assertEqual((1, 0, 0), (inserted, updated, failed))
         kwargs = save.call_args.kwargs
-        self.assertEqual("review_required@2026-10-02-a", kwargs["status"])
+        self.assertEqual("review_required@2026-10-06-b", kwargs["status"])
         self.assertEqual("ECU Validation Engineer", kwargs["title"])
         self.assertEqual("Munich", kwargs["location"])
 
@@ -158,7 +158,7 @@ class TestReviewQueue(unittest.TestCase):
     def test_bmw_review_is_restored_on_matcher_revision(self):
         rows = [
             {"job_id": "old", "status": "review_required@2026-09-30-b"},
-            {"job_id": "current", "status": "review_required@2026-10-02-a"},
+            {"job_id": "current", "status": "review_required@2026-10-06-b"},
             {"job_id": "sent", "status": "sent", "sent_to_telegram": True},
         ]
         self.assertEqual({"current", "sent"}, bmw_runner.get_current_seen_ids(rows))
@@ -167,7 +167,7 @@ class TestReviewQueue(unittest.TestCase):
         response = MagicMock(status_code=204)
         with patch.object(store, "_check_config"), patch.object(store, "_request", return_value=response) as send:
             store.update_job(
-                "bmw", "sample", status="review_required@2026-10-02-a",
+                "bmw", "sample", status="review_required@2026-10-06-b",
                 title="Verification Engineer", location="Munich", url="https://example.invalid",
             )
         self.assertEqual("Verification Engineer", send.call_args.kwargs["json"]["title"])
@@ -183,7 +183,7 @@ class TestReviewQueue(unittest.TestCase):
     def test_current_review_does_not_repeat_every_five_minutes(self):
         with (
             patch.object(linkedin, "TEST_MODE", False),
-            patch.object(linkedin, "get_job_record", return_value={"status": "review_required@2026-10-02-a", "sent_to_telegram": False}),
+            patch.object(linkedin, "get_job_record", return_value={"status": "review_required@2026-10-06-b", "sent_to_telegram": False}),
         ):
             self.assertTrue(linkedin.already_seen({"job_id": "new", "posted": ""}))
 
