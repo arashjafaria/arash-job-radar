@@ -1,0 +1,75 @@
+name: Validate Indeed activation
+
+on:
+  push:
+    branches:
+      - validate/indeed-activation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-linkedin-record:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_ID: ${{ secrets.CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install requests
+      - name: Print sanitized stored decision for LinkedIn 4458269624
+        run: |
+          python - <<'PY'
+          from supabase_store import get_job_record
+          record = get_job_record("linkedin", "4458269624") or {}
+          allowed = {
+              "source": record.get("source"),
+              "job_id": record.get("job_id"),
+              "title": record.get("title"),
+              "company": record.get("company"),
+              "location": record.get("location"),
+              "posted_at": record.get("posted_at"),
+              "match_score": record.get("match_score"),
+              "status": record.get("status"),
+              "sent_to_telegram": record.get("sent_to_telegram"),
+          }
+          print("SANITIZED_JOB_RECORD:", allowed)
+          PY
+
+  validate-indeed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_ID: ${{ secrets.CHAT_ID }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      MARKET_DRY_RUN: "1"
+      MARKET_SOURCES: "indeed"
+      MARKET_MAX_DETAILS: "8"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - run: python -m playwright install --with-deps chromium
+      - name: Validate Indeed without Telegram or Supabase writes
+        run: |
+          set -o pipefail
+          python market_monitor.py | tee indeed_validation.log
+      - name: Preserve log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: indeed-validation-${{ github.run_id }}
+          path: indeed_validation.log
+          retention-days: 7
