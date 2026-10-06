@@ -1793,12 +1793,13 @@ def evaluate_fit(
         and has_scored_requirements
         and has_core_evidence
         and not strong_mismatches
-        and len(assessed_requirements) >= 5
-        and evidence_coverage >= 50
-        and len(uncertain_details) <= len(assessed_requirements)
-        and requirement_fit >= 90
-        and core_fit >= 90
-        and role_fit >= 90
+        and len(assessed_requirements) >= 4
+        and evidence_coverage >= 30
+        and len(uncertain_details) <= 2 * len(assessed_requirements)
+        and requirement_fit == 100
+        and core_fit == 100
+        and role_fit == 100
+        and responsibility_fit >= 40
         and overall >= 90
     )
 
