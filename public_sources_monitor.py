@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from urllib.parse import quote, urljoin, urlparse, parse_qs
 
 import requests
+from notifications import notify_job_once, was_notified
+from decisions import record_decision, fit_decision
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
@@ -850,13 +852,10 @@ def should_skip(job):
         or ""
     )
 
-    if (
-        record.get(
-            "sent_to_telegram"
-        )
-        or status == "sent"
-    ):
+    if was_notified(record):
         return True
+    if status.startswith(("apply", "notification_pending")):
+        return False
 
     return status.endswith(
         "@"
@@ -895,6 +894,7 @@ def remember(
                 ""
             ),
         )
+        record_decision(job["source"], job["job_id"], status, score, details.get("_decision_evidence"))
         return
 
     save_job(
@@ -924,6 +924,7 @@ def remember(
         status=stored_status,
         sent_to_telegram=sent,
     )
+    record_decision(job["source"], job["job_id"], status, score, details.get("_decision_evidence"))
 
 
 def build_message(
@@ -1218,6 +1219,15 @@ def evaluate_job(job):
         )
     )
 
+    decision, reason = fit_decision(details["title"], score, breakdown)
+    details["_decision_evidence"] = {"decision": decision, "reason": reason,
+        "breakdown": breakdown, "description": details["description_text"],
+        "requirements": details.get("requirements", []), "tasks": details.get("tasks", []),
+        "stage": "first_match"}
+    if breakdown.get("review_required"):
+        remember(job, details, "review_required", score)
+        return
+
     if (
         not breakdown.get(
             "gates_pass",
@@ -1290,9 +1300,8 @@ def evaluate_job(job):
         score,
     )
 
-    if send_long(
-        message
-    ):
+    remember(job, details, "apply", score)
+    if notify_job_once({**job, **{k: details.get(k, "") for k in ("title", "company", "location")}}, message, send_telegram):
         remember(
             job,
             details,

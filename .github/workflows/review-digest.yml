@@ -15,10 +15,8 @@ concurrency:
 
 jobs:
   review-digest:
-    # Pause producers while deploying the permanent notification ledger.
-    if: ${{ false }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     env:
       BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       CHAT_ID: ${{ secrets.CHAT_ID }}
@@ -29,8 +27,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install requests
-      - name: Send at most eight queued low-confidence opportunities
+      - run: pip install -r requirements.txt
+      - name: Re-evaluate at most eight jobs and notify only never-notified jobs
         run: python -m scripts.review_digest
       - name: Alert on daily digest failure
         if: failure()

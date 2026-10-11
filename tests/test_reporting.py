@@ -48,18 +48,18 @@ class TestReviewQueue(unittest.TestCase):
         self.assertIn("Potential matches: 2", message)
         self.assertIn("Descriptions successfully extracted: 9", message)
 
-    def test_review_digest_marks_records_only_after_success(self):
+    def test_second_review_stores_decision_before_guarded_notification(self):
         rows = [{"source": "linkedin", "job_id": "x", "title": "Engineer",
                  "company": "Example", "url": "https://example.invalid"}]
-        reply = MagicMock()
         with (
-            patch.dict(os.environ, {"BOT_TOKEN": "dummy", "CHAT_ID": "dummy"}),
             patch.object(review_digest, "pending_reviews", return_value=rows),
-            patch.object(review_digest.requests, "post", return_value=reply) as send,
+            patch.object(review_digest, "review", return_value=("apply", {"decision": "apply", "reason": "gates passed"}, 85)),
+            patch.object(review_digest, "record_decision") as record,
+            patch.object(review_digest, "notify_job_once") as send,
             patch.object(review_digest, "update_job") as update,
         ):
             review_digest.main()
-        reply.raise_for_status.assert_called_once()
+        record.assert_called_once()
         send.assert_called_once()
         update.assert_called_once()
 
@@ -173,12 +173,12 @@ class TestReviewQueue(unittest.TestCase):
         self.assertEqual("Verification Engineer", send.call_args.kwargs["json"]["title"])
         self.assertEqual("Munich", send.call_args.kwargs["json"]["location"])
 
-    def test_old_review_is_rechecked_when_matcher_changes(self):
+    def test_old_digest_does_not_repeat_when_matcher_changes(self):
         with (
             patch.object(linkedin, "TEST_MODE", False),
             patch.object(linkedin, "get_job_record", return_value={"status": "review_digest_sent@2026-09-30-c", "sent_to_telegram": False}),
         ):
-            self.assertFalse(linkedin.already_seen({"job_id": "old", "posted": ""}))
+            self.assertTrue(linkedin.already_seen({"job_id": "old", "posted": ""}))
 
     def test_current_review_does_not_repeat_every_five_minutes(self):
         with (

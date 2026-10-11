@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
 
 import requests
+from notifications import notify_job_once, was_notified
+from decisions import record_decision, fit_decision
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
@@ -431,8 +433,10 @@ def should_process(candidate):
     if not record:
         return True
     status = record.get("status", "") or ""
-    if record.get("sent_to_telegram") or status == "sent":
+    if was_notified(record):
         return False
+    if status.startswith(("apply", "notification_pending")):
+        return True
     tag = "@" + REVISION
     if (status.startswith("rejected_") or status.startswith("review_required") or status.startswith("review_digest_sent")) and not status.endswith(tag):
         print("  Rechecking old rejection after matcher update.")
@@ -463,6 +467,7 @@ def remember(candidate, details, status, score=None, sent=False):
     }
 
     if save_job(**payload):
+        record_decision(candidate["source"], candidate["job_id"], status, score, details.get("_decision_evidence"))
         print("  Saved:", stored_status)
         return
 
@@ -474,6 +479,7 @@ def remember(candidate, details, status, score=None, sent=False):
         sent_to_telegram=sent,
         posted_at=details.get("date_posted", ""),
     )
+    record_decision(candidate["source"], candidate["job_id"], status, score, details.get("_decision_evidence"))
     print("  Updated:", stored_status)
 
 
@@ -695,6 +701,12 @@ def evaluate_candidate(page, candidate):
     )
     score = max(0, min(100, score))
     print("  Score:", score, "| req:", breakdown.get("requirements", 0), "| core:", breakdown.get("core_requirements", 0))
+    decision, reason = fit_decision(candidate["title"], score, breakdown)
+    details["_decision_evidence"] = {"decision": decision, "reason": reason,
+        "breakdown": breakdown, "description": full_text,
+        "requirements": details.get("requirements", []), "tasks": details.get("tasks", []),
+        "stage": "first_match", "checks": {"experience": exp_text, "language": german_text,
+                                               "location": loc_text, "contract": contract_text}}
     audit_candidate(candidate, details, "evaluated", score, breakdown)
 
     if breakdown.get("review_required", False):
@@ -740,11 +752,14 @@ def evaluate_candidate(page, candidate):
         german_text, contract_text, warnings, breakdown
     )
     print("  MATCH -> Telegram")
-    if send_long(message):
+    if DRY_RUN:
+        return send_long(message)
+    remember(candidate, details, "apply", score)
+    if notify_job_once({**candidate, **{k: details.get(k, "") for k in ("title", "company", "location")}}, message, send_telegram):
         remember(candidate, details, "sent", score, True)
         return True
 
-    print("  Telegram failed; not stored so it can retry.")
+    print("  Notification suppressed or uncertain; no automatic delivery retry.")
     return False
 
 
