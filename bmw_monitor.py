@@ -22,7 +22,10 @@ from profile import (
     SENIOR_MIN_MATCH_PERCENT,
 )
 
-from supabase_store import find_sent_duplicate
+from supabase_store import find_sent_duplicate, save_job
+from notifications import notify_job_once
+from decisions import record_decision, fit_decision
+from profile import MATCHER_REVISION
 
 from job_matcher import (
     evaluate_fit as cv_evaluate_fit,
@@ -1613,421 +1616,435 @@ def build_telegram_message(
 # MAIN
 # ============================================================
 
-print()
-print("=" * 70)
-print("ARASH JOB RADAR - BMW CV MATCHER")
-print("=" * 70)
+def main():
+    print()
+    print("=" * 70)
+    print("ARASH JOB RADAR - BMW CV MATCHER")
+    print("=" * 70)
 
-jobs = get_bmw_jobs()
+    jobs = get_bmw_jobs()
 
-print()
-print(
-    "TOTAL BMW JOBS READ:",
-    len(jobs)
-)
+    print()
+    print(
+        "TOTAL BMW JOBS READ:",
+        len(jobs)
+    )
 
-seen_jobs = load_seen_jobs()
+    seen_jobs = load_seen_jobs()
 
-new_jobs = []
+    new_jobs = []
 
-for job in jobs:
+    for job in jobs:
 
-    if (
-        job["url"]
-        not in seen_jobs
-    ):
+        if (
+            job["url"]
+            not in seen_jobs
+        ):
 
-        new_jobs.append(
-            job
+            new_jobs.append(
+                job
+            )
+
+            # Mark as seen even if later rejected.
+            seen_jobs.add(
+                job["url"]
+            )
+
+    print()
+    print(
+        "NEW BMW JOBS:",
+        len(new_jobs)
+    )
+
+    sent_count = 0
+    sent_urls = set()
+    sent_details = []
+    review_jobs = []
+
+    for job in new_jobs:
+
+        print()
+        print("-" * 70)
+
+        print(
+            "Checking:",
+            job["title"]
         )
 
-        # Mark as seen even if later rejected.
-        seen_jobs.add(
+        if is_excluded(
+            job["title"]
+        ):
+
+            print(
+                "Rejected: student/internship/apprenticeship"
+            )
+
+            continue
+
+        details = get_job_details(
             job["url"]
         )
 
-print()
-print(
-    "NEW BMW JOBS:",
-    len(new_jobs)
-)
-
-sent_count = 0
-sent_urls = set()
-sent_details = []
-review_jobs = []
-
-for job in new_jobs:
-
-    print()
-    print("-" * 70)
-
-    print(
-        "Checking:",
-        job["title"]
-    )
-
-    if is_excluded(
-        job["title"]
-    ):
-
-        print(
-            "Rejected: student/internship/apprenticeship"
-        )
-
-        continue
-
-    details = get_job_details(
-        job["url"]
-    )
-
-    full_text = (
-        job["title"]
-        + " "
-        + details[
-            "description_text"
-        ]
-    )
-
-    if is_excluded(
-        full_text
-    ):
-
-        print(
-            "Rejected by description."
-        )
-
-        continue
-
-    # --------------------------------------------------------
-    # NEWNESS
-    # --------------------------------------------------------
-
-    age = job_age_days(
-        details[
-            "date_posted"
-        ]
-    )
-
-    if (
-        age is not None
-        and age
-        > MAX_JOB_AGE_DAYS
-    ):
-
-        print(
-            f"Rejected: {age} days old."
-        )
-
-        continue
-
-    # --------------------------------------------------------
-    # LOCATION
-    # --------------------------------------------------------
-
-    location_ok, location_status = (
-        cv_location_status(
-            details[
-                "location"
-            ],
-            full_text
-        )
-    )
-
-    if not location_ok:
-
-        print(
-            "Rejected:",
-            location_status,
-            details[
-                "location"
+        full_text = (
+            job["title"]
+            + " "
+            + details[
+                "description_text"
             ]
         )
 
-        continue
+        if is_excluded(
+            full_text
+        ):
 
-    # --------------------------------------------------------
-    # EXPERIENCE
-    # --------------------------------------------------------
+            print(
+                "Rejected by description."
+            )
 
-    required_years = (
-        cv_extract_candidate_experience_years(
+            continue
+
+        # --------------------------------------------------------
+        # NEWNESS
+        # --------------------------------------------------------
+
+        age = job_age_days(
+            details[
+                "date_posted"
+            ]
+        )
+
+        if (
+            age is not None
+            and age
+            > MAX_JOB_AGE_DAYS
+        ):
+
+            print(
+                f"Rejected: {age} days old."
+            )
+
+            continue
+
+        # --------------------------------------------------------
+        # LOCATION
+        # --------------------------------------------------------
+
+        location_ok, location_status = (
+            cv_location_status(
+                details[
+                    "location"
+                ],
+                full_text
+            )
+        )
+
+        if not location_ok:
+
+            print(
+                "Rejected:",
+                location_status,
+                details[
+                    "location"
+                ]
+            )
+
+            continue
+
+        # --------------------------------------------------------
+        # EXPERIENCE
+        # --------------------------------------------------------
+
+        required_years = (
+            cv_extract_candidate_experience_years(
+                details[
+                    "requirements"
+                ],
+                details[
+                    "description_text"
+                ],
+            )
+        )
+
+        reject_experience, experience_status = (
+            cv_experience_status(
+                required_years
+            )
+        )
+
+        if reject_experience:
+
+            print(
+                "Rejected experience:",
+                experience_status
+            )
+
+            continue
+
+        # --------------------------------------------------------
+        # CONTRACT
+        # --------------------------------------------------------
+
+        reject_contract, employment_status = (
+            cv_contract_status(
+                {
+                    "employment type":
+                        details[
+                            "employment_type"
+                        ]
+                },
+                details[
+                    "description_text"
+                ],
+            )
+        )
+
+        if reject_contract:
+
+            print(
+                "Rejected contract:",
+                employment_status
+            )
+
+            continue
+
+        # --------------------------------------------------------
+        # LANGUAGE
+        # --------------------------------------------------------
+
+        (
+            reject_language,
+            german_status,
+            german_adjustment,
+        ) = cv_german_requirement(
+            full_text
+        )
+
+        if reject_language:
+
+            print(
+                "Rejected language:",
+                german_status
+            )
+
+            continue
+
+        # --------------------------------------------------------
+        # CV MATCH
+        # --------------------------------------------------------
+
+        (
+            score,
+            matched,
+            skill_warnings,
+            breakdown,
+        ) = cv_evaluate_fit(
+            job["title"],
+            details[
+                "description_text"
+            ],
             details[
                 "requirements"
             ],
             details[
-                "description_text"
+                "tasks"
             ],
         )
-    )
 
-    reject_experience, experience_status = (
-        cv_experience_status(
-            required_years
+        # Native German is excluded; C1/C2/B2 are visible language-gap warnings.
+        score = max(
+            0,
+            min(
+                100,
+                score
+            )
         )
-    )
 
-    if reject_experience:
+        warnings = []
+
+        if german_status.startswith("⚠️"):
+            warnings.append(
+                german_status
+            )
+
+        warnings.extend(
+            skill_warnings
+        )
+
+        warnings.extend(
+            cv_security_warnings(
+                full_text
+            )
+        )
 
         print(
-            "Rejected experience:",
+            "Match score:",
+            score
+        )
+
+        print(
+            "Experience:",
             experience_status
         )
 
-        continue
-
-    # --------------------------------------------------------
-    # CONTRACT
-    # --------------------------------------------------------
-
-    reject_contract, employment_status = (
-        cv_contract_status(
-            {
-                "employment type":
-                    details[
-                        "employment_type"
-                    ]
-            },
-            details[
-                "description_text"
-            ],
-        )
-    )
-
-    if reject_contract:
-
-        print(
-            "Rejected contract:",
-            employment_status
-        )
-
-        continue
-
-    # --------------------------------------------------------
-    # LANGUAGE
-    # --------------------------------------------------------
-
-    (
-        reject_language,
-        german_status,
-        german_adjustment,
-    ) = cv_german_requirement(
-        full_text
-    )
-
-    if reject_language:
-
-        print(
-            "Rejected language:",
-            german_status
-        )
-
-        continue
-
-    # --------------------------------------------------------
-    # CV MATCH
-    # --------------------------------------------------------
-
-    (
-        score,
-        matched,
-        skill_warnings,
-        breakdown,
-    ) = cv_evaluate_fit(
-        job["title"],
-        details[
-            "description_text"
-        ],
-        details[
-            "requirements"
-        ],
-        details[
-            "tasks"
-        ],
-    )
-
-    # Native German is excluded; C1/C2/B2 are visible language-gap warnings.
-    score = max(
-        0,
-        min(
-            100,
-            score
-        )
-    )
-
-    warnings = []
-
-    if german_status.startswith("⚠️"):
-        warnings.append(
-            german_status
-        )
-
-    warnings.extend(
-        skill_warnings
-    )
-
-    warnings.extend(
-        cv_security_warnings(
-            full_text
-        )
-    )
-
-    print(
-        "Match score:",
-        score
-    )
-
-    print(
-        "Experience:",
-        experience_status
-    )
-
-    if breakdown.get("review_required", False):
-        print("Uncertain BMW match: saved for weekly human review")
-        review_jobs.append({
-            "job_id": job["url"],
-            "title": job.get("title", ""),
-            "company": "BMW Group",
-            "location": details.get("location", ""),
-            "url": job["url"],
-            "posted_at": details.get("date_posted", ""),
-            "score": score,
+        decision, reason = fit_decision(job["title"], score, breakdown)
+        metadata = {"source": "bmw", "job_id": job["url"], "title": job["title"],
+                    "company": "BMW Group", "location": details.get("location", ""), "url": job["url"]}
+        save_job(**metadata, posted_at=details.get("date_posted", ""),
+                 match_score=score, status=("review_required" if decision == "manual" else decision) + "@" + MATCHER_REVISION)
+        record_decision("bmw", job["url"], decision, score, {
+            "decision": decision, "reason": reason, "breakdown": breakdown,
+            "requirements": details.get("requirements", []), "tasks": details.get("tasks", []),
+            "description": details.get("description_text", ""), "stage": "first_match",
+            "checks": {"location": location_status, "contract": employment_status,
+                       "experience": experience_status, "language": german_status},
         })
-        continue
+        if breakdown.get("review_required", False):
+            print("Uncertain BMW match: saved for second-stage review")
+            review_jobs.append({
+                "job_id": job["url"],
+                "title": job.get("title", ""),
+                "company": "BMW Group",
+                "location": details.get("location", ""),
+                "url": job["url"],
+                "posted_at": details.get("date_posted", ""),
+                "score": score,
+            })
+            continue
 
-    if not breakdown.get(
-        "gates_pass",
-        False
-    ):
+        if not breakdown.get(
+            "gates_pass",
+            False
+        ):
 
-        print(
-            "Rejected by requirement gates:",
-            f"requirements={breakdown.get('requirements', 0)}%",
-            f"core={breakdown.get('core_requirements', 0)}%",
-            f"overall={score}%"
-        )
-
-        continue
-
-    if score < MIN_MATCH_SCORE:
-
-        print(
-            "Rejected: score too low."
-        )
-
-        continue
-
-    # Senior/lead titles are kept only for a very strong CV fit.
-    if (
-        cv_is_senior_title(
-            job["title"]
-        )
-        and score
-        < SENIOR_MIN_MATCH_PERCENT
-    ):
-
-        print(
-            "Rejected: senior/lead title below "
-            f"{SENIOR_MIN_MATCH_PERCENT}% fit."
-        )
-
-        continue
-
-    # The two live monitors run separately; check the shared DB before
-    # sending a job that may already have arrived through LinkedIn.
-    duplicate = find_sent_duplicate(
-        "bmw", job.get("title", ""), "BMW Group", details.get("location", "")
-    )
-    if duplicate:
-        print("BMW duplicate already sent via:", duplicate.get("source", ""))
-        continue
-
-    message = (
-        build_telegram_message(
-            job,
-            details,
-            score,
-            matched,
-            location_status,
-            required_years,
-            experience_status,
-            german_status,
-            employment_status,
-            warnings,
-            breakdown,
-        )
-    )
-
-    print(
-        "MATCH -> Telegram"
-    )
-
-    telegram_ok = send_long_telegram(
-        message
-    )
-
-    if telegram_ok:
-        sent_count += 1
-        sent_urls.add(
-            job["url"]
-        )
-        sent_details.append({
-            "job_id": job["url"],
-            "title": job.get("title", ""),
-            "company": "BMW Group",
-            "location": details.get("location", ""),
-            "url": job["url"],
-            "posted_at": details.get("date_posted", ""),
-            "score": score,
-        })
-    else:
-        print(
-            "Telegram delivery failed; job not marked as sent."
-        )
-
-
-with open(
-    REVIEW_FILE,
-    "w",
-    encoding="utf-8"
-) as file:
-    json.dump(review_jobs, file, indent=2, ensure_ascii=False)
-
-with open(
-    SENT_DETAILS_FILE,
-    "w",
-    encoding="utf-8"
-) as file:
-    json.dump(sent_details, file, indent=2, ensure_ascii=False)
-
-with open(
-    SENT_FILE,
-    "w",
-    encoding="utf-8"
-) as file:
-    json.dump(
-        sorted(
-            list(
-                sent_urls
+            print(
+                "Rejected by requirement gates:",
+                f"requirements={breakdown.get('requirements', 0)}%",
+                f"core={breakdown.get('core_requirements', 0)}%",
+                f"overall={score}%"
             )
-        ),
-        file,
-        indent=2,
-        ensure_ascii=False
+
+            continue
+
+        if score < MIN_MATCH_SCORE:
+
+            print(
+                "Rejected: score too low."
+            )
+
+            continue
+
+        # Senior/lead titles are kept only for a very strong CV fit.
+        if (
+            cv_is_senior_title(
+                job["title"]
+            )
+            and score
+            < SENIOR_MIN_MATCH_PERCENT
+        ):
+
+            print(
+                "Rejected: senior/lead title below "
+                f"{SENIOR_MIN_MATCH_PERCENT}% fit."
+            )
+
+            continue
+
+        # The two live monitors run separately; check the shared DB before
+        # sending a job that may already have arrived through LinkedIn.
+        duplicate = find_sent_duplicate(
+            "bmw", job.get("title", ""), "BMW Group", details.get("location", "")
+        )
+        if duplicate:
+            print("BMW duplicate already sent via:", duplicate.get("source", ""))
+            continue
+
+        message = (
+            build_telegram_message(
+                job,
+                details,
+                score,
+                matched,
+                location_status,
+                required_years,
+                experience_status,
+                german_status,
+                employment_status,
+                warnings,
+                breakdown,
+            )
+        )
+
+        print(
+            "MATCH -> Telegram"
+        )
+
+        telegram_ok = notify_job_once(metadata, message, send_telegram)
+
+        if telegram_ok:
+            sent_count += 1
+            sent_urls.add(
+                job["url"]
+            )
+            sent_details.append({
+                "job_id": job["url"],
+                "title": job.get("title", ""),
+                "company": "BMW Group",
+                "location": details.get("location", ""),
+                "url": job["url"],
+                "posted_at": details.get("date_posted", ""),
+                "score": score,
+            })
+        else:
+            print(
+                "Telegram delivery failed; job not marked as sent."
+            )
+
+
+    with open(
+        REVIEW_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+        json.dump(review_jobs, file, indent=2, ensure_ascii=False)
+
+    with open(
+        SENT_DETAILS_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+        json.dump(sent_details, file, indent=2, ensure_ascii=False)
+
+    with open(
+        SENT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+        json.dump(
+            sorted(
+                list(
+                    sent_urls
+                )
+            ),
+            file,
+            indent=2,
+            ensure_ascii=False
+        )
+
+    save_seen_jobs(
+        seen_jobs
     )
 
-save_seen_jobs(
-    seen_jobs
-)
+    print()
+    print("=" * 70)
 
-print()
-print("=" * 70)
+    print(
+        "Relevant jobs sent:",
+        sent_count
+    )
 
-print(
-    "Relevant jobs sent:",
-    sent_count
-)
+    print("=" * 70)
+    print("BMW scan finished.")
+    print("=" * 70)
 
-print("=" * 70)
-print("BMW scan finished.")
-print("=" * 70)
+if __name__ == "__main__":
+    main()

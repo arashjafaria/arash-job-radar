@@ -1,5 +1,6 @@
 import time
 import re
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 
 import requests
@@ -54,6 +55,7 @@ def _request(
     params=None,
     json=None,
     timeout=20,
+    api_url=None,
 ):
 
     last_error = None
@@ -67,7 +69,7 @@ def _request(
 
             response = requests.request(
                 method,
-                API_URL,
+                api_url or API_URL,
                 headers=headers or HEADERS,
                 params=params,
                 json=json,
@@ -159,7 +161,7 @@ def get_job_record(
     response = _request(
         "GET",
         params={
-            "select": "id,status,sent_to_telegram,posted_at,match_score",
+            "select": "*",
             "source": f"eq.{source}",
             "job_id": f"eq.{job_id}",
             "limit": "1",
@@ -284,7 +286,8 @@ def update_job(
         )
 
 
-    if sent_to_telegram is not None:
+    # Delivery history is monotonic; re-evaluation must never erase it.
+    if sent_to_telegram:
 
         data[
             "sent_to_telegram"
@@ -333,6 +336,50 @@ def update_job(
 
 
     return True
+
+
+def save_decision(source, job_id, decision, evidence):
+    """Store the full explanation independently of notification history."""
+    from profile import MATCHER_REVISION
+    _check_config()
+    response = _request(
+        "PATCH",
+        params={"source": f"eq.{source}", "job_id": f"eq.{job_id}"},
+        headers={**HEADERS, "Prefer": "return=representation"},
+        json={
+            "decision_status": decision,
+            "decision_evidence": evidence,
+            "matcher_revision": MATCHER_REVISION,
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+    if response.status_code != 200 or not response.json():
+        raise RuntimeError("Could not persist decision evidence; check database migration")
+
+
+def claim_notification(source, job_id, token):
+    """Reserve a job before the single Telegram attempt, across all workflows."""
+    _check_config()
+    response = _request(
+        "POST",
+        api_url=f"{SUPABASE_URL}/rest/v1/rpc/claim_job_notification",
+        json={"p_source": source, "p_job_id": str(job_id), "p_token": token},
+    )
+    if response.status_code != 200:
+        raise RuntimeError("Notification reservation failed; no Telegram call allowed")
+    return response.json() is True
+
+
+def finish_notification(source, job_id, token, delivered):
+    _check_config()
+    response = _request(
+        "POST",
+        api_url=f"{SUPABASE_URL}/rest/v1/rpc/finish_job_notification",
+        json={"p_source": source, "p_job_id": str(job_id),
+              "p_token": token, "p_delivered": bool(delivered)},
+    )
+    if response.status_code != 200 or response.json() is not True:
+        raise RuntimeError("Notification outcome not saved; reservation remains permanent")
 
 
 

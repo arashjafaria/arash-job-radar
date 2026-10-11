@@ -9,7 +9,7 @@
 | StepStone | `market-radar.yml` | Mondays 06:00 UTC, or safe manual dry run | **No** — dry run only |
 | Indeed | No production activation | None | **No** — known HTTP 403 |
 | Regression & independent source health | `quality-gates.yml` | Every relevant code change and daily 05:45 UTC | Only on daily failure |
-| Low-confidence review digest | `review-digest.yml` | Daily 16:30 UTC | At most eight queued items per digest |
+| Second-stage review | `review-digest.yml` | Daily 16:30 UTC | At most eight never-notified opportunities per run |
 
 The legacy `public_sources_monitor.py` is deliberately absent from the BMW workflow and is also disabled by default. Do **not** re-enable it as a shortcut: it is an obsolete second implementation.
 
@@ -20,15 +20,52 @@ The legacy `public_sources_monitor.py` is deliberately absent from the BMW workf
 3. The independent weekly StepStone workflow always uses `MARKET_DRY_RUN=1`. It archives `market_scan.log`, `market_health.json`, and `market_audit.jsonl`. It fails if it cannot extract any actual job descriptions. The simulated `sent` count means **potential matches, never notifications delivered**.
 4. Manually label a diverse set of **40–50 real advertisements**, spanning relevant, adjacent, clearly unrelated and missing-information jobs. Evaluate false positives and false negatives separately. The repository does not yet contain that completed real-world benchmark.
 5. **Do not** switch `MARKET_DRY_RUN` to `0` or add Indeed to `MARKET_SOURCES` until the benchmark passes, access is permitted/reliable, and deployment is separately approved.
-6. Review the daily low-confidence digest: unclassified requirements go to manual review rather than being treated as proof of a match or silently discarded.
+6. Second-stage review fetches a fresh description, retries section extraction, and persists `apply`, `reject`, or `manual` with a specific reason. Unclassified requirements remain manual; a retry does not invent CV evidence.
+
+## Release prerequisite: database migration
+
+Before merging/deploying this change, pause the external dispatchers and wait for
+existing BMW, LinkedIn, and review runs to finish. Execute
+`migrations/20261011_decisions_and_notifications.sql` in the existing Supabase
+SQL Editor, then deploy and resume dispatchers. The migration is idempotent and
+imports all tracked `sent`, `sent_to_telegram=true`, and `review_digest_sent*`
+records into permanent notification history. Do not clear this table on matcher
+updates, reposts, or job-table cleanup. Code fails closed if reservation RPCs or
+evidence columns are missing; it will not fall back to unprotected sending.
+
+Historical Telegram posts whose database delivery marker was already lost
+cannot be reconstructed automatically. Reconcile known missing markers before
+deploying if such posts exist. No live Supabase migration is performed by CI.
+
+Every job producer, including the disabled legacy collector, now reserves the
+job before a single Telegram message. A second-stage `APPLY` decision for an
+already-digested job changes the database decision only. Reposts may be matched
+again, but they never reset the original job's notification reservation.
+
+Reservations use a PostgreSQL transaction lock across sources and permanent
+source/job-ID history, canonical URLs, and normalized company/title/location
+identity. Conservative identity matching may suppress a distinct vacancy with
+the same role at the same employer and place. Arbitrarily renamed duplicates
+cannot be guaranteed detectable without a shared employer requisition ID.
+
+Telegram has no idempotency key. This is **at-most-once attempted delivery**, not
+guaranteed delivery: timeouts, interrupted runs, or an unavailable outcome write
+leave the reservation intact and may lose an alert. Never automatically release
+or retry those reservations. `notification_status` distinguishes `claimed`,
+`delivered`, `uncertain`, and `suppressed`; it is independent of matching decisions.
+
+The quality workflow includes a disposable PostgreSQL 16 database and exercises
+the actual migration/RPCs, including competing concurrent claims. For local DB
+tests, set `RADAR_TEST_DATABASE_URL` to an **empty disposable database** and install
+`psycopg[binary]`. The tests refuse to overwrite an existing `arash_jobs` table.
 
 ## Health, reliability and known limits
 
 - BMW and LinkedIn workflows now fail when actual source activity is missing or their evidence of a successful scan is absent. The separate daily quality workflow checks recent production runs and issues at most one scheduled health alert per day.
 - LinkedIn local discovery is scoped to Munich with a 100-mile (~161 km) radius so Germany-wide first-page results do not crowd local vacancies out. A separate Germany-wide remote-filter sample runs once per hour.
 - LinkedIn HTTP 429 handling now honors `Retry-After` when numeric, retries once with a capped wait, and stops the local scan after two persistent 429 responses. A single persistent 429 remains degraded-but-usable; broader blocking is a hard failure and triggers a Telegram health alert.
-- Supabase stores seen/sent/review states. The revised BMW bridge retains job titles and locations for future cross-source duplicate checks. Alerts are sent only after an additional best-effort cross-source duplicate lookup.
-- **Concurrent notification delivery is not fully atomic**. A rare duplicate is still possible if two sources send the same vacancy simultaneously or Telegram succeeds before a failed Supabase write. Full exactly-once delivery would require a transactional database claim/outbox design.
+- Supabase stores matching decisions and evidence independently of delivery history. All job producers use a permanent transactional notification reservation.
+- Every tracked job ID is reserved before Telegram is contacted; matching updates never erase notification history. Long job messages are compacted to one message with a vacancy link, avoiding repeat multipart posts after partial failure.
 - Real websites may change markup, apply rate limits, or restrict automated access. A green workflow means the health gate passed; it does not establish that matching recommendations are perfect.
 - Python dependencies: `pip install -r requirements.txt`. StepStone dry runs also require Playwright's Chromium runtime. The shared matcher revision lives in `profile.py`.
 

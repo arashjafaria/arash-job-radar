@@ -17,6 +17,7 @@ from supabase_store import (
     save_job,
     update_job,
 )
+from notifications import was_notified
 
 
 SOURCE = "bmw"
@@ -54,7 +55,7 @@ def get_supabase_bmw_records():
             API_URL,
             headers=HEADERS,
             params={
-                "select": "job_id,status,sent_to_telegram",
+                "select": "job_id,status,sent_to_telegram,notification_status",
                 "source": "eq.bmw",
                 "limit": str(batch_size),
                 "offset": str(offset),
@@ -112,10 +113,7 @@ def get_current_seen_ids(
         )
 
         if (
-            row.get(
-                "sent_to_telegram"
-            )
-            or status == "sent"
+            was_notified(row)
             or status.endswith(
                 current_tag
             )

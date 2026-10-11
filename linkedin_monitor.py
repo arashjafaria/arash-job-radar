@@ -1,9 +1,12 @@
 import os
 import re
 import time
+from datetime import datetime, timezone
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import requests
+from notifications import notify_job_once, was_notified
+from decisions import record_decision, fit_decision
 from bs4 import BeautifulSoup
 
 from config import BOT_TOKEN, CHAT_ID
@@ -465,6 +468,20 @@ def any_term_present(
 # SUPABASE MEMORY
 # ============================================================
 
+def posting_changed(current, stored):
+    if not current:
+        return False
+    if not stored:
+        return True
+    try:
+        def instant(value):
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+        return instant(current) != instant(stored)
+    except (ValueError, TypeError):
+        return current != stored
+
+
 def already_seen(job):
 
     if TEST_MODE:
@@ -492,15 +509,6 @@ def already_seen(job):
             )
             or ""
         )
-
-        if (
-            record.get(
-                "sent_to_telegram"
-            )
-            or status == "sent"
-        ):
-
-            return True
 
         # A Germany-wide remote-filter hit deserves one recheck when the same
         # LinkedIn ID was previously rejected before details solely because its
@@ -538,18 +546,18 @@ def already_seen(job):
 
         # Same LinkedIn ID can be reposted/updated. Re-evaluate when
         # LinkedIn reports a different posting timestamp.
-        if (
-            current_posted
-            and stored_posted
-            and current_posted
-            != stored_posted
-        ):
+        if posting_changed(current_posted, stored_posted):
 
             print(
                 "Rechecking reposted/updated job:",
                 job["job_id"]
             )
 
+            return False
+
+        if was_notified(record):
+            return True
+        if status.startswith(("apply", "notification_pending")):
             return False
 
         # Re-evaluate old rejected records once whenever matcher rules
@@ -688,6 +696,8 @@ def remember_job(
             )
 
 
+        record_decision(SOURCE, str(job["job_id"]), status, match_score,
+                        job.get("_decision_evidence"))
         return True
 
 
@@ -2275,6 +2285,7 @@ def get_job_details(
 
         "description":
             description,
+        "description_html": str(description_el or ""),
 
         "criteria":
             criteria,
@@ -3152,6 +3163,15 @@ def main():
             )
         )
 
+        decision, reason = fit_decision(job["title"], score, breakdown)
+        job["_decision_evidence"] = {
+            "title": job["title"], "description": description,
+            "requirements": details.get("requirements", []), "tasks": details.get("tasks", []),
+            "breakdown": breakdown, "decision": decision, "reason": reason,
+            "checks": {"location": location_status, "contract": employment_status,
+                       "experience": experience_status, "language": german_status},
+            "stage": "first_match",
+        }
         core_matches = matched
 
         warnings = []
@@ -3201,7 +3221,7 @@ def main():
         # ----------------------------------------------------
 
         if breakdown.get("review_required", False):
-            print("Low confidence: queued for weekly review; no automatic Telegram alert")
+            print("Low confidence: queued for second-stage review; no automatic Telegram alert")
             if remember_job(job, "review_required", score):
                 stored += 1
             continue
@@ -3351,15 +3371,16 @@ def main():
         # TELEGRAM
         # ----------------------------------------------------
 
+        if not remember_job(job, "apply", score):
+            raise RuntimeError("Cannot notify before persisting the match decision")
         telegram_ok = (
-            send_long_message(
-                message
+            notify_job_once(
+                {**job, "source": SOURCE}, message, send_telegram
             )
         )
 
 
-        # Only remember a successful Telegram match
-        # after Telegram delivery succeeds.
+        # Reservation remains permanent even if delivery is uncertain.
         if telegram_ok:
 
             sent += 1
@@ -3382,7 +3403,7 @@ def main():
             )
 
             print(
-                "NOT stored - will retry later."
+                "No retry after a notification reservation; check delivery outcome."
             )
 
 
