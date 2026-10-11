@@ -15,6 +15,8 @@ concurrency:
 
 jobs:
   review-digest:
+    # Pause producers while deploying the permanent notification ledger.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:

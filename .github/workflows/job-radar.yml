@@ -13,6 +13,8 @@ concurrency:
 
 jobs:
   check-bmw-jobs:
+    # Pause producers while deploying the permanent notification ledger.
+    if: ${{ false }}
     runs-on: ubuntu-latest
 
     env:
