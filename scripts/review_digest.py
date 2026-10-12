@@ -1,5 +1,6 @@
 """Second-stage decisions, followed by at most one lifetime job notification."""
 import os
+import time
 
 import requests
 
@@ -8,20 +9,45 @@ from decisions import evaluate_details, record_decision
 from notifications import notify_job_once
 from supabase_store import _check_config, _request, update_job
 
-MAX_PER_DIGEST = 8
+MAX_PER_RUN = 25
+NEW_JOB_SLOTS = 20
+REVIEW_BUDGET_SECONDS = 300
+DETAIL_DELAY_SECONDS = 2.5
 TELEGRAM_SAFE_LENGTH = 3900
 
 
 def pending_reviews():
     _check_config()
-    response = _request("GET", params={
-        "select": "*",
-        "or": "(status.like.review_required*,status.like.review_digest_sent*)",
-        "order": "id.asc", "limit": str(MAX_PER_DIGEST),
-    })
-    if response.status_code != 200:
-        raise RuntimeError("Review queue request failed")
-    return response.json()
+    def fetch(filters, order):
+        response = _request("GET", params={
+            "select": "*", **filters, "order": order,
+            "limit": str(MAX_PER_RUN),
+        })
+        if response.status_code != 200:
+            raise RuntimeError("Review queue request failed")
+        return response.json()
+
+    # Fresh opportunities must not sit behind already-delivered legacy digests.
+    new_jobs = fetch({
+        "status": "like.review_required*",
+        "sent_to_telegram": "eq.false",
+        "or": "(notification_status.is.null,notification_status.not.in.(claimed,delivered,uncertain,suppressed))",
+    }, "first_seen_at.desc,id.desc")
+    historical_jobs = fetch({
+        "and": "(or(status.like.review_required*,status.like.review_digest_sent*),or(sent_to_telegram.eq.true,status.like.review_digest_sent*,notification_status.in.(claimed,delivered,uncertain,suppressed)))",
+    }, "id.asc")
+    historical_slots = MAX_PER_RUN - NEW_JOB_SLOTS
+    candidates = (new_jobs[:NEW_JOB_SLOTS] + historical_jobs[:historical_slots]
+                  + new_jobs[NEW_JOB_SLOTS:] + historical_jobs[historical_slots:])
+    rows, seen = [], set()
+    for row in candidates:
+        key = (row["source"], str(row["job_id"]))
+        if key not in seen:
+            rows.append(row)
+            seen.add(key)
+        if len(rows) == MAX_PER_RUN:
+            break
+    return rows
 
 
 def fresh_details(row):
@@ -88,9 +114,17 @@ def main():
     if not rows:
         print("Review queue empty; no Telegram digest needed.")
         return
-    for row in rows:
+    started = time.monotonic()
+    processed = 0
+    for index, row in enumerate(rows):
+        if time.monotonic() - started >= REVIEW_BUDGET_SECONDS:
+            print("Review time budget reached; remaining jobs stay queued for the next run.")
+            break
+        if index:
+            time.sleep(DETAIL_DELAY_SECONDS)
         decision, evidence, score = review(row)
         record_decision(row["source"], row["job_id"], decision, score, evidence)
+        processed += 1
         print("Second review:", row["source"], row["job_id"], decision, evidence["reason"])
         if decision == "reject":
             update_job(row["source"], row["job_id"], match_score=score,
@@ -103,6 +137,7 @@ def main():
         notify_job_once(row, message, send_telegram)
         update_job(row["source"], row["job_id"], match_score=score,
                    status=("apply" if decision == "apply" else "manual_review") + "@" + MATCHER_REVISION)
+    print(f"Review batch completed: {processed}/{len(rows)} jobs evaluated.")
 
 
 if __name__ == "__main__":
