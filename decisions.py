@@ -5,6 +5,7 @@ from job_matcher import (
 )
 from profile import MATCHER_REVISION, MIN_MATCH_PERCENT, SENIOR_MIN_MATCH_PERCENT, EXCLUDE_WORDS
 from supabase_store import save_decision
+from review_priority import build_priority
 
 
 def fit_decision(title, score, breakdown):
@@ -40,6 +41,7 @@ def record_decision(source, job_id, status, score=None, evidence=None):
             decision, reason = "reject", status.split("@", 1)[0]
         evidence.update(decision=decision, reason=reason)
     evidence.update(matcher_revision=MATCHER_REVISION, score=score)
+    evidence["review_priority"] = build_priority(evidence)
     save_decision(source, job_id, evidence["decision"], evidence)
 
 

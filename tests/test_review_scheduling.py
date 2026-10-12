@@ -13,9 +13,10 @@ def jobs(prefix, count):
 
 class TestReviewScheduling(unittest.TestCase):
     def select_queue(self, fresh, historical):
-        responses = [Mock(status_code=200), Mock(status_code=200)]
+        responses = [Mock(status_code=200), Mock(status_code=200), Mock(status_code=200)]
         responses[0].json.return_value = fresh
-        responses[1].json.return_value = historical
+        responses[1].json.return_value = fresh
+        responses[2].json.return_value = historical
         with patch.object(review, "_check_config"), \
              patch.object(review, "_request", side_effect=responses) as request:
             selected = review.pending_reviews()
@@ -27,7 +28,8 @@ class TestReviewScheduling(unittest.TestCase):
         self.assertEqual(fresh[:20] + historical[:5], selected)
         fresh_query = request.call_args_list[0].kwargs["params"]
         self.assertEqual("eq.false", fresh_query["sent_to_telegram"])
-        self.assertEqual("first_seen_at.desc,id.desc", fresh_query["order"])
+        self.assertIn("decision_evidence->review_priority->base.desc", fresh_query["order"])
+        self.assertNotEqual("*", fresh_query["select"])
 
     def test_spare_historical_capacity_is_given_to_fresh_jobs(self):
         fresh, historical = jobs("fresh", 25), jobs("historical", 2)

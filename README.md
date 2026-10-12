@@ -24,8 +24,18 @@ The legacy `public_sources_monitor.py` is deliberately absent from the BMW workf
 
 Second-stage review handles up to 25 jobs per run within a five-minute processing
 budget, spacing description requests by 2.5 seconds. Twenty slots prioritize
-the newest never-notified vacancies and five reserve progress for older,
-already-notified reviews; unused slots are shared. Jobs outside the batch or
+never-notified vacancies and five reserve progress for already-notified reviews.
+Within the twenty, eighteen rank existing matcher evidence and two guarantee
+progress for the longest-waiting vacancies. Priority is not a match percentage:
+verified core fit contributes up to 25 points, task fit 35, requirement fit 15,
+and classification coverage 10. Core/requirement scores are discounted by
+coverage. Publication freshness adds up to 15 points (24h: 15; 72h: 10; seven
+days: 5), and waiting adds up to ten points. Unknown/future publication dates
+get no freshness boost, not a rejection. There is no new age-based exclusion.
+Priority is stored inside existing decision evidence in the same write, with
+no extra source request. The queue reads compact metadata for at most 100
+ranked, 25 oldest, and 25 historical candidates; no full descriptions are
+downloaded for sorting. Unused slots are shared. Jobs outside the batch or
 time budget stay queued for the next 15-minute run. There is no daily review cap.
 After deploying the workflow, run `scripts/review_schedule.sql` in the existing
 Supabase project to install/update its named dispatcher. GitHub workflow

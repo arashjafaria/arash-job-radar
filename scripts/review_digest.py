@@ -8,9 +8,15 @@ from profile import MATCHER_REVISION
 from decisions import evaluate_details, record_decision
 from notifications import notify_job_once
 from supabase_store import _check_config, _request, update_job
+from review_priority import prioritize
 
 MAX_PER_RUN = 25
 NEW_JOB_SLOTS = 20
+WAITING_JOB_SLOTS = 2
+CANDIDATE_POOL = 100
+QUEUE_FIELDS = ("source,job_id,title,company,location,url,posted_at,first_seen_at,"
+                "status,sent_to_telegram,notification_status,"
+                "review_priority:decision_evidence->review_priority")
 REVIEW_BUDGET_SECONDS = 300
 DETAIL_DELAY_SECONDS = 2.5
 TELEGRAM_SAFE_LENGTH = 3900
@@ -18,21 +24,35 @@ TELEGRAM_SAFE_LENGTH = 3900
 
 def pending_reviews():
     _check_config()
-    def fetch(filters, order):
+    def fetch(filters, order, limit=MAX_PER_RUN):
         response = _request("GET", params={
-            "select": "*", **filters, "order": order,
-            "limit": str(MAX_PER_RUN),
+            "select": QUEUE_FIELDS, **filters, "order": order,
+            "limit": str(limit),
         })
         if response.status_code != 200:
             raise RuntimeError("Review queue request failed")
         return response.json()
 
     # Fresh opportunities must not sit behind already-delivered legacy digests.
-    new_jobs = fetch({
+    new_filters = {
         "status": "like.review_required*",
         "sent_to_telegram": "eq.false",
         "or": "(notification_status.is.null,notification_status.not.in.(claimed,delivered,uncertain,suppressed))",
-    }, "first_seen_at.desc,id.desc")
+    }
+    ranked = fetch(new_filters,
+                   "decision_evidence->review_priority->base.desc.nullslast,first_seen_at.desc,id.desc",
+                   CANDIDATE_POOL)
+    waiting = fetch(new_filters, "first_seen_at.asc,id.asc")
+    # Two dedicated waiting slots prevent unknown/low-priority jobs starving.
+    ranked_keys = {(row["source"], row["job_id"]) for row in ranked}
+    ranked = prioritize(ranked + [row for row in waiting
+                                  if (row["source"], row["job_id"]) not in ranked_keys])
+    head = ranked[:NEW_JOB_SLOTS - WAITING_JOB_SLOTS]
+    head_keys = {(row["source"], row["job_id"]) for row in head}
+    oldest = [row for row in waiting if (row["source"], row["job_id"]) not in head_keys][:WAITING_JOB_SLOTS]
+    selected_keys = head_keys | {(row["source"], row["job_id"]) for row in oldest}
+    new_jobs = head + oldest + [row for row in ranked
+                               if (row["source"], row["job_id"]) not in selected_keys]
     historical_jobs = fetch({
         "and": "(or(status.like.review_required*,status.like.review_digest_sent*),or(sent_to_telegram.eq.true,status.like.review_digest_sent*,notification_status.in.(claimed,delivered,uncertain,suppressed)))",
     }, "id.asc")
