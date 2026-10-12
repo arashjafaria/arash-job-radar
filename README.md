@@ -9,7 +9,7 @@
 | StepStone | `market-radar.yml` | Mondays 06:00 UTC, or safe manual dry run | **No** — dry run only |
 | Indeed | No production activation | None | **No** — known HTTP 403 |
 | Regression & independent source health | `quality-gates.yml` | Every relevant code change and daily 05:45 UTC | Only on daily failure |
-| Second-stage review | `review-digest.yml` | Daily 16:30 UTC | At most eight never-notified opportunities per run |
+| Second-stage review | `review-digest.yml` | Supabase dispatcher every 15 minutes | Only never-notified opportunities, through permanent reservations |
 
 The legacy `public_sources_monitor.py` is deliberately absent from the BMW workflow and is also disabled by default. Do **not** re-enable it as a shortcut: it is an obsolete second implementation.
 
@@ -21,6 +21,16 @@ The legacy `public_sources_monitor.py` is deliberately absent from the BMW workf
 4. Manually label a diverse set of **40–50 real advertisements**, spanning relevant, adjacent, clearly unrelated and missing-information jobs. Evaluate false positives and false negatives separately. The repository does not yet contain that completed real-world benchmark.
 5. **Do not** switch `MARKET_DRY_RUN` to `0` or add Indeed to `MARKET_SOURCES` until the benchmark passes, access is permitted/reliable, and deployment is separately approved.
 6. Second-stage review fetches a fresh description, retries section extraction, and persists `apply`, `reject`, or `manual` with a specific reason. Unclassified requirements remain manual; a retry does not invent CV evidence.
+
+Second-stage review handles up to 25 jobs per run within a five-minute processing
+budget, spacing description requests by 2.5 seconds. Twenty slots prioritize
+the newest never-notified vacancies and five reserve progress for older,
+already-notified reviews; unused slots are shared. Jobs outside the batch or
+time budget stay queued for the next 15-minute run. There is no daily review cap.
+After deploying the workflow, run `scripts/review_schedule.sql` in the existing
+Supabase project to install/update its named dispatcher. GitHub workflow
+concurrency prevents overlapping review workers; notification reservations are
+unchanged.
 
 ## Release prerequisite: database migration
 

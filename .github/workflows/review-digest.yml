@@ -1,10 +1,8 @@
-name: Job Radar manual-review digest
+name: Job Radar second-stage review
 
 on:
   workflow_dispatch:
-  schedule:
-    # Once in the evening in Germany; not every five-minute scan.
-    - cron: "30 16 * * *"
+  # Supabase dispatches this workflow every 15 minutes (see scripts/review_schedule.sql).
 
 permissions:
   contents: read
@@ -28,9 +26,9 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install -r requirements.txt
-      - name: Re-evaluate at most eight jobs and notify only never-notified jobs
+      - name: Review fresh opportunities first with permanent notification reservations
         run: python -m scripts.review_digest
-      - name: Alert on daily digest failure
+      - name: Alert on review failure
         if: failure()
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -39,7 +37,7 @@ jobs:
             curl --fail --silent --show-error --retry 2 \
               --request POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
               --data-urlencode "chat_id=${CHAT_ID}" \
-              --data-urlencode "text=⚠️ Job Radar manual-review digest failed. ${RUN_URL}"
+              --data-urlencode "text=⚠️ Job Radar second-stage review failed. ${RUN_URL}"
           else
             echo "::warning::Telegram secrets not configured"
           fi
