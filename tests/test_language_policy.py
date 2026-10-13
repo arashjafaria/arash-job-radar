@@ -25,7 +25,10 @@ class TestGermanPolicy(unittest.TestCase):
                      "German C2 optional", "Verhandlungssicheres Deutsch wünschenswert",
                      "Native German is not required", "German C1 not mandatory",
                      "Ideally fluent German", "English or German fluent",
-                     "German B2/C1", "German C1 or B2"):
+                     "German B2/C1", "German C1 or B2",
+                     "German C1 preferred and fluent English required",
+                     "English required and ideally fluent German",
+                     "German C1 preferred and Python required"):
             with self.subTest(text=text):
                 self.assertFalse(german_requirement(text)[0], german_requirement(text))
 
@@ -41,6 +44,7 @@ class TestGermanPolicy(unittest.TestCase):
 
     def test_explicit_mandatory_clause_overrides_separate_preference(self):
         self.assertTrue(german_requirement("German optional for some teams; German C1 required for this role")[0])
+        self.assertTrue(german_requirement("German C1 required and Python is a plus")[0])
 
     def test_second_review_cannot_override_mandatory_german(self):
         row = {"source": "linkedin", "job_id": "synthetic", "title": "ECU Test Engineer",

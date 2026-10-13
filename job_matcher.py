@@ -2147,9 +2147,22 @@ def german_requirement(text):
         for pattern in patterns:
             for match in re.finditer(pattern, clause):
                 q = match.group("q")
-                context = clause[max(0, match.start() - 35):match.end() + 65]
+                start, end = max(0, match.start() - 35), match.end() + 65
+                # Preference/requirement words belonging to another language
+                # must not change whether this German qualifier is mandatory.
+                preceding = list(re.finditer(other, clause[:match.start()]))
+                if preceding:
+                    gap = clause[preceding[-1].end():match.start()]
+                    separators = list(re.finditer(r"\b(?:and|und)\b|&", gap))
+                    start = (preceding[-1].end() + separators[-1].end()
+                             if separators else match.start())
+                following = re.search(other, clause[match.end():end])
+                if following:
+                    end = match.end() + following.start()
+                context = clause[start:end]
+                mandatory_context = clause[max(start, match.start() - 16):min(end, match.end() + 16)]
                 is_optional = alternative or bool(re.search(negative, context)) or (
-                    bool(re.search(optional, context)) and not re.search(mandatory, context))
+                    bool(re.search(optional, context)) and not re.search(mandatory, mandatory_context))
                 if is_optional:
                     display = q.upper() if re.search(r"\b[bc][12]\b", q) else q
                     result = (False, f"German {display} optional/preferred; not a hard requirement", 0)
