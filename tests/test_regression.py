@@ -121,12 +121,12 @@ class TestPolicyInvariants(unittest.TestCase):
         self.assertTrue(reject)
         self.assertIn("Native", detail)
 
-    def test_c1_c2_warned_not_silently_rejected(self):
+    def test_required_c1_c2_fluent_german_rejected(self):
         for phrase in ("German C1 required", "Deutsch C2 erforderlich", "fluent German required"):
             with self.subTest(phrase=phrase):
                 reject, detail, _ = matcher.german_requirement(phrase)
-                self.assertFalse(reject)
-                self.assertIn("⚠️", detail)
+                self.assertTrue(reject)
+                self.assertIn("required", detail)
 
     def test_b2_warning(self):
         reject, detail, _ = matcher.german_requirement("German B2 preferred")

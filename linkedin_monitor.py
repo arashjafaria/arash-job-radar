@@ -1249,98 +1249,9 @@ def experience_fit(
 def german_requirement(
     text
 ):
-
-    low = (
-        text
-        or ""
-    ).lower()
-
-
-    high_patterns = [
-
-        r"german.{0,40}\\bc1\\b",
-
-        r"deutsch.{0,40}\\bc1\\b",
-
-        r"\\bc1\\b.{0,40}german",
-
-        r"\\bc1\\b.{0,40}deutsch",
-
-        r"german.{0,40}\\bc2\\b",
-
-        r"deutsch.{0,40}\\bc2\\b",
-
-        r"native german",
-
-        r"german native",
-
-        r"deutsch.{0,40}muttersprache",
-
-        r"muttersprache.{0,40}deutsch",
-
-        r"verhandlungssicher.{0,40}deutsch",
-
-        r"deutsch.{0,40}verhandlungssicher",
-
-        r"fluent.{0,30}german",
-
-        r"german.{0,30}fluent",
-
-        r"fluent in german",
-
-        r"fließend.{0,30}deutsch",
-
-        r"fliessend.{0,30}deutsch",
-
-        r"sehr gute deutschkenntnisse",
-    ]
-
-
-    for pattern in high_patterns:
-
-        if re.search(
-            pattern,
-            low
-        ):
-
-            return (
-                "⚠️ German C1/C2/fluent requested; current level B1",
-                -15,
-                False
-            )
-
-
-    b2_patterns = [
-
-        r"german.{0,40}\\bb2\\b",
-
-        r"deutsch.{0,40}\\bb2\\b",
-
-        r"\\bb2\\b.{0,40}german",
-
-        r"\\bb2\\b.{0,40}deutsch",
-    ]
-
-
-    for pattern in b2_patterns:
-
-        if re.search(
-            pattern,
-            low
-        ):
-
-            return (
-                "⚠️ German B2 requested; current level B1",
-                -8,
-                False
-            )
-
-
-    return (
-        "No strong German requirement detected",
-        0,
-        False
-    )
+    # Compatibility adapter for callers using the legacy tuple order.
+    rejected, reason, adjustment = cv_german_requirement(text)
+    return reason, adjustment, rejected
 
 
 # ============================================================
@@ -3153,8 +3064,7 @@ def main():
             ),
         )
 
-        # German B2/C1/C2 is a warning only.
-        # Native German remains a hard rejection above.
+        # Mandatory fluent/C1/C2/native German is rejected above; B2 remains a warning.
         score = max(
             0,
             min(

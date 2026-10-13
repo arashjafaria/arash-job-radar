@@ -2118,111 +2118,55 @@ def experience_status(required_years):
 # ============================================================
 
 def german_requirement(text):
-    low = (text or "").lower()
-
-    native_patterns = [
-        r"native german",
-        r"german native",
-        r"deutsch.{0,40}muttersprache",
-        r"muttersprache.{0,40}deutsch",
-        r"deutsch.{0,40}muttersprach",
-    ]
-
-    for pattern in native_patterns:
-        if re.search(
-            pattern,
-            low,
-        ):
-            return (
-                True,
-                "Native German / Muttersprache required; current level B1",
-                -100,
-            )
-
-    c_patterns = [
-        r"german.{0,40}\bc1\b",
-        r"deutsch.{0,40}\bc1\b",
-        r"\bc1\b.{0,40}german",
-        r"\bc1\b.{0,40}deutsch",
-        r"german.{0,40}\bc2\b",
-        r"deutsch.{0,40}\bc2\b",
-        r"verhandlungssicher.{0,40}deutsch",
-        r"deutsch.{0,40}verhandlungssicher",
-        r"fluent.{0,30}german",
-        r"german.{0,30}fluent",
-        r"fließend.{0,30}deutsch",
-        r"fliessend.{0,30}deutsch",
-    ]
-
-    for pattern in c_patterns:
-        if re.search(
-            pattern,
-            low,
-        ):
-            return (
-                False,
-                "⚠️ German C1/C2/fluent required; current level B1 — review language gap",
-                -5,
-            )
-
-    very_good_patterns = [
-        r"sehr gute deutschkenntnisse",
-        r"sehr gutes deutsch",
-        r"very good german",
-    ]
-
-    for pattern in very_good_patterns:
-        if re.search(
-            pattern,
-            low,
-        ):
-            return (
-                False,
-                "⚠️ Very good German requested, but no explicit C1/C2 level; current level B1",
-                -5,
-            )
-
-    b2_patterns = [
-        r"german.{0,40}\bb2\b",
-        r"deutsch.{0,40}\bb2\b",
-        r"\bb2\b.{0,40}german",
-        r"\bb2\b.{0,40}deutsch",
-    ]
-
-    for pattern in b2_patterns:
-        if re.search(
-            pattern,
-            low,
-        ):
-            return (
-                False,
-                "⚠️ German B2 requested; current level B1",
-                -5,
-            )
-
-    b1_patterns = [
-        r"german.{0,40}\bb1\b",
-        r"deutsch.{0,40}\bb1\b",
-        r"\bb1\b.{0,40}german",
-        r"\bb1\b.{0,40}deutsch",
-    ]
-
-    for pattern in b1_patterns:
-        if re.search(
-            pattern,
-            low,
-        ):
-            return (
-                False,
-                "German B1 requested; matches current level",
-                0,
-            )
-
-    return (
-        False,
-        "No explicit German level detected",
-        0,
-    )
+    """Bind levels to German, not to an adjacent English requirement."""
+    german = r"\b(?:german|deutsch(?:kenntnisse[n]?|e[nrms]?\s+sprache)?)\b"
+    other = r"\b(?:english|englisch(?:kenntnisse[n]?)?|french|französisch|spanish|italian)\b"
+    join = r"\s*(?:and|und|&|/)\s*"
+    languages = rf"(?:{other}{join})*{german}(?:{join}{other})*"
+    connector = (r"(?:[\s:()\-]*(?:in wort und schrift|written and spoken|spoken and written|at least|"
+                 r"in|both|skills|language|kenntnisse|kenntnissen|is|are|must|be|at|a|"
+                 r"level|of|on|niveau|auf|dem|der|als|speaker|speaking|written|spoken|to|"
+                 r"mindestens|minimum|proficiency)\b){0,6}[\s:()\-]*")
+    qualifier = (r"\b(?:[bc][12](?:\s*(?:/|or|oder|bis|-)\s*[bc][12])*|"
+                 r"native|muttersprache|muttersprachlich(?:e[nrms]?)?|"
+                 r"fluent|fluency|fließend(?:e[nrms]?)?|fliessend(?:e[nrms]?)?|"
+                 r"verhandlungssicher(?:heit|e[nrms]?)?|very good|sehr gut(?:e[nrms]?)?)\b")
+    patterns = [rf"(?P<q>{qualifier}){connector}{languages}",
+                rf"{languages}{connector}(?P<q>{qualifier})"]
+    optional = (r"\b(?:optional|preferred|preferably|ideally|desirable|advantage|beneficial|bonus|"
+                r"nice[- ]to[- ]have|a plus|wünschenswert|idealerweise|von vorteil|kein muss)\b")
+    negative = r"\b(?:not (?:required|mandatory|necessary)|(?:do not|don't) need|nicht erforderlich|keine? .{0,20}erforderlich)\b"
+    mandatory = r"\b(?:required|mandatory|essential|must|required|erforderlich|zwingend|voraussetzung)\b"
+    result = (False, "No explicit German level detected", 0)
+    low = (text or "").lower().replace("mind.", "mindestens ").replace("min.", "minimum ")
+    for clause in re.split(r"[.;,!?\n]+", low):
+        if not re.search(german, clause):
+            continue
+        # Explicit either-language alternatives do not require German alone.
+        alternative = bool(re.search(rf"(?:{other}.{{0,15}}(?:or|oder|/).{{0,15}}{german}|{german}.{{0,15}}(?:or|oder|/).{{0,15}}{other})", clause))
+        for pattern in patterns:
+            for match in re.finditer(pattern, clause):
+                q = match.group("q")
+                context = clause[max(0, match.start() - 35):match.end() + 65]
+                is_optional = alternative or bool(re.search(negative, context)) or (
+                    bool(re.search(optional, context)) and not re.search(mandatory, context))
+                if is_optional:
+                    display = q.upper() if re.search(r"\b[bc][12]\b", q) else q
+                    result = (False, f"German {display} optional/preferred; not a hard requirement", 0)
+                    continue
+                levels = re.findall(r"\b[bc][12]\b", q)
+                if levels and min(levels) == "b1":
+                    result = (False, "German B1 requested; matches current level", 0)
+                elif levels and min(levels) == "b2":
+                    result = (False, "⚠️ German B2 requested; current level B1", -5)
+                elif q.startswith(("very good", "sehr gut")):
+                    result = (False, "⚠️ Very good German requested, but no explicit C1/C2 level; current level B1", -5)
+                else:
+                    label = "Native German / Muttersprache" if q.startswith(("native", "mutter")) else "German C1/C2/fluent"
+                    return True, label + " required; current level B1", -100
+        if re.search(optional, clause) and result[1] == "No explicit German level detected":
+            result = (False, "German optional/preferred; not a hard requirement", 0)
+    return result
 
 
 # ============================================================
