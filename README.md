@@ -81,6 +81,8 @@ tests, set `RADAR_TEST_DATABASE_URL` to an **empty disposable database** and ins
 
 ## Health, reliability and known limits
 
+- Required native/fluent/C1/C2 German is a hard rejection in initial and second-stage review. Optional/preferred German does not trigger it. English fluency and English CEFR levels are not assigned to German. B2 and unspecified "very good German" retain the existing warning policy. Notification reservations are unchanged.
+
 - BMW and LinkedIn workflows now fail when actual source activity is missing or their evidence of a successful scan is absent. The separate daily quality workflow checks recent production runs and issues at most one scheduled health alert per day.
 - LinkedIn local discovery is scoped to Munich with a 100-mile (~161 km) radius so Germany-wide first-page results do not crowd local vacancies out. A separate Germany-wide remote-filter sample runs once per hour.
 - LinkedIn HTTP 429 handling now honors `Retry-After` when numeric, retries once with a capped wait, and stops the local scan after two persistent 429 responses. A single persistent 429 remains degraded-but-usable; broader blocking is a hard failure and triggers a Telegram health alert.

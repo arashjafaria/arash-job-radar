@@ -1850,7 +1850,7 @@ def main():
             ],
         )
 
-        # Native German is excluded; C1/C2/B2 are visible language-gap warnings.
+        # Mandatory fluent/C1/C2/native German is excluded; B2 remains a warning.
         score = max(
             0,
             min(
