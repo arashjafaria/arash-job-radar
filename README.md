@@ -94,3 +94,31 @@ tests, set `RADAR_TEST_DATABASE_URL` to an **empty disposable database** and ins
 ## Credentials
 
 GitHub Actions secrets used by the live/dry-run workflows: `BOT_TOKEN`, `CHAT_ID`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`. GitHub provides the daily status check with its normal `GITHUB_TOKEN`. Never store credentials in the repository or its public Actions artifacts.
+
+## ALTEN website radar
+
+The independent `alten-pilot.yml` workflow checks the English ALTEN job board
+hourly at minute 17, using Munich coordinates and a 25 km radius. It also runs
+on deployment and can be started manually. Existing LinkedIn/BMW collectors
+continue independently.
+
+`python alten_monitor.py` remains a read-only preview. `--post` enables production
+with live Supabase history and the fixed 24-hour cutoff. Historical snapshots or
+an extended age limit cannot be combined with posting. ALTEN publishes dates
+without times; UTC midnight is used conservatively. Full task and requirement
+sections feed the existing CV matcher. Eligible matches are sent through the
+permanent notification reservation; uncertain matches enter second-stage review.
+That review fetches the description again and rejects stale ALTEN vacancies.
+
+Duplicates and possible title/location overlaps are held. The shared notifier
+rechecks permanent history in both directions, including uncertain sends. The
+SQL reservation holds the existing global transaction lock and additionally
+compares ALTEN company aliases, title suffixes/token overlap and requisition IDs.
+This also protects concurrent LinkedIn and website notifications. Reservations
+are never reset and Telegram attempts are never retried. Differently worded
+adverts without shared identifiers can still require manual identification.
+
+Deploy `supabase/migrations/20261021084241_alten_cross_source_notifications.sql`
+before enabling `--post`. The collector's audit records listing coverage,
+parsing errors, decisions, duplicate evidence and confirmed sends. Default runs
+make no writes; production uses the configured Supabase and Telegram secrets.

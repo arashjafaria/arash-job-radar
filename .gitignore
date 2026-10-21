@@ -13,6 +13,7 @@ make_config.py
 # Python
 __pycache__/
 *.pyc
+alten_audit*.json
 
 # Old helper files
 bmw_pagination_ready.txt

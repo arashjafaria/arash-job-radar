@@ -19,6 +19,16 @@ def compact_message(message, url=""):
 
 def notify_job_once(job, message, sender):
     source, job_id = job["source"], str(job["job_id"])
+    if (job.get("company") or "").lower().startswith("alten"):
+        # Applies in both directions, including LinkedIn and second reviews.
+        # Fail closed on lookup errors; history includes uncertain sends.
+        import requests
+        from alten_monitor import load_existing, duplicate_check
+        with requests.Session() as session:
+            existing = [row for row in load_existing(session) if was_notified(row)]
+        if duplicate_check(job, existing)["state"] != "no_match_found":
+            print("ALTEN notification held by cross-source history:", source, job_id)
+            return False
     save_job(source, job_id, title=job.get("title", ""),
              company=job.get("company", ""), location=job.get("location", ""),
              url=job.get("url", ""), status="notification_pending")

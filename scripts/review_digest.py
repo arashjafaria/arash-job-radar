@@ -71,6 +71,13 @@ def pending_reviews():
 
 
 def fresh_details(row):
+    if row["source"] == "alten":
+        from alten_monitor import parse_detail
+        response = requests.get(row["url"], timeout=25)
+        response.raise_for_status()
+        details = parse_detail(response.text, row)
+        details["date_posted"] = details["posted_at"]
+        return details
     if row["source"] == "linkedin":
         from linkedin_monitor import get_job_details
         from public_sources_monitor import extract_sections
@@ -92,14 +99,27 @@ def fresh_details(row):
 
 
 def review(row):
+    if row["source"] == "alten":
+        from alten_monitor import assess
+        freshness = assess({**row, "posted_at": row.get("posted_at") or "", "description": ""})
+        if freshness["reason"] in {"older_than_age_limit", "future_publication_date", "unknown_publication_date"}:
+            return "reject", {"decision": "reject", "stage": "second_review", "reason": freshness["reason"]}, None
     try:
         details = fresh_details(row)
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
         details = None
+    if row["source"] == "alten" and details:
+        from alten_monitor import assess
+        freshness = assess({**details, "description": ""})
+        if freshness["reason"] in {"older_than_age_limit", "future_publication_date", "unknown_publication_date"}:
+            return "reject", {"decision": "reject", "stage": "second_review", "reason": freshness["reason"]}, None
     if not details or not (details.get("description") or details.get("description_text")):
         return "manual", {"decision": "manual", "stage": "second_review",
                           "reason": "fresh job description unavailable; cannot verify requirements"}, None
-    return evaluate_details(row, details)
+    result = evaluate_details(row, details)
+    if row["source"] == "alten":
+        result[1]["requisition_id"] = details.get("requisition_id", "")
+    return result
 
 
 def build_digest(rows):
