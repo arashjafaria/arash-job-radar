@@ -94,3 +94,31 @@ tests, set `RADAR_TEST_DATABASE_URL` to an **empty disposable database** and ins
 ## Credentials
 
 GitHub Actions secrets used by the live/dry-run workflows: `BOT_TOKEN`, `CHAT_ID`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`. GitHub provides the daily status check with its normal `GITHUB_TOKEN`. Never store credentials in the repository or its public Actions artifacts.
+
+## ALTEN website pilot
+
+`python alten_monitor.py --output alten_audit.json` scans the English ALTEN
+job board using Munich coordinates, a 25 km radius, newest first, and bounded
+pagination/detail requests. It is a separate read-only test: no database writes,
+queue insertion, Telegram requests, or production scheduler changes.
+
+The script reads all ALTEN job records and notification history from Supabase,
+including pending/manual records. Alternatively pass `--existing-jobs snapshot.json`
+with a JSON array of existing records. Missing/failed duplicate access aborts.
+Website IDs, canonical URLs and requisition references identify known vacancies;
+same/similar title plus city is marked `possible_duplicate` for checking. A
+`no_match_found` result is not proof that differently titled/translated adverts
+are distinct. Atomic cross-source notification protection is still required
+before enabling production delivery.
+
+Only vacancies within the last 24 hours are assessed by default. ALTEN provides
+dates without times, so UTC midnight is used conservatively. Unknown dates and
+unfetched details remain manual. Full task/requirement sections feed the existing
+matcher with its German, experience and contract checks. The website radius
+provides the location bound. Use `--max-age-hours 1440` only for an explicit
+historical parser/matcher test; it does not enable posting. The audit records
+coverage, errors, decisions, duplicate evidence and elapsed time.
+
+The independent `alten-pilot.yml` workflow runs manually (and on the pilot branch
+push), without Telegram credentials. It has no recurring schedule. It must pass
+before considering production integration.

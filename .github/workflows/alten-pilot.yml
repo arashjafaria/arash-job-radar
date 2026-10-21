@@ -1,0 +1,36 @@
+name: ALTEN website read-only pilot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/alten-website-dry-run]
+    paths: [alten_monitor.py, tests/test_alten_monitor.py, .github/workflows/alten-pilot.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alten-read-only-pilot
+  cancel-in-progress: false
+
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install requests beautifulsoup4
+      - run: python -m unittest discover -s tests -p test_alten_monitor.py -v
+      - run: python alten_monitor.py --output alten_audit.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alten-pilot-${{ github.run_id }}
+          path: alten_audit.json
+          retention-days: 14
