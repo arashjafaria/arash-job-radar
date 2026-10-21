@@ -29,6 +29,7 @@ class TestNotificationDatabase(unittest.TestCase):
                        VALUES ('linkedin','legacy-digest','Legacy role','Legacy','Munich','https://legacy.invalid','review_digest_sent@old')""")
             cls.sql = (Path(__file__).parents[1] / "migrations/20261011_decisions_and_notifications.sql").read_text()
             db.execute(cls.sql)
+            db.execute((Path(__file__).parents[1] / 'supabase/migrations/20261021084241_alten_cross_source_notifications.sql').read_text())
 
     def setUp(self):
         with self.psycopg.connect(DSN, autocommit=True) as db:
@@ -60,6 +61,14 @@ class TestNotificationDatabase(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=2) as workers:
             outcomes = list(workers.map(lambda args: self.claim(*args),
                                        [('linkedin','same-id','a'),('bmw','other-id','b')]))
+        self.assertEqual(1, outcomes.count(True))
+
+    def test_concurrent_alten_alias_and_suffix_has_one_winner(self):
+        self.add_job('linkedin', 'li-alten', title='System Test Engineer (all gender) gg', company='ALTEN Consulting Services GmbH')
+        self.add_job('alten', 'web-alten', title='System Test Engineer (all gender)', company='ALTEN', location='Munich, Bavaria, Germany')
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            outcomes = list(workers.map(lambda args: self.claim(*args),
+                [('linkedin', 'li-alten', 'a'), ('alten', 'web-alten', 'b')]))
         self.assertEqual(1, outcomes.count(True))
 
     def test_legacy_digest_backfilled_even_when_old_flag_was_false(self):

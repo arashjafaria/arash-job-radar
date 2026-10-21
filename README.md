@@ -95,30 +95,30 @@ tests, set `RADAR_TEST_DATABASE_URL` to an **empty disposable database** and ins
 
 GitHub Actions secrets used by the live/dry-run workflows: `BOT_TOKEN`, `CHAT_ID`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`. GitHub provides the daily status check with its normal `GITHUB_TOKEN`. Never store credentials in the repository or its public Actions artifacts.
 
-## ALTEN website pilot
+## ALTEN website radar
 
-`python alten_monitor.py --output alten_audit.json` scans the English ALTEN
-job board using Munich coordinates, a 25 km radius, newest first, and bounded
-pagination/detail requests. It is a separate read-only test: no database writes,
-queue insertion, Telegram requests, or production scheduler changes.
+The independent `alten-pilot.yml` workflow checks the English ALTEN job board
+hourly at minute 17, using Munich coordinates and a 25 km radius. It also runs
+on deployment and can be started manually. Existing LinkedIn/BMW collectors
+continue independently.
 
-The script reads all ALTEN job records and notification history from Supabase,
-including pending/manual records. Alternatively pass `--existing-jobs snapshot.json`
-with a JSON array of existing records. Missing/failed duplicate access aborts.
-Website IDs, canonical URLs and requisition references identify known vacancies;
-same/similar title plus city is marked `possible_duplicate` for checking. A
-`no_match_found` result is not proof that differently titled/translated adverts
-are distinct. Atomic cross-source notification protection is still required
-before enabling production delivery.
+`python alten_monitor.py` remains a read-only preview. `--post` enables production
+with live Supabase history and the fixed 24-hour cutoff. Historical snapshots or
+an extended age limit cannot be combined with posting. ALTEN publishes dates
+without times; UTC midnight is used conservatively. Full task and requirement
+sections feed the existing CV matcher. Eligible matches are sent through the
+permanent notification reservation; uncertain matches enter second-stage review.
+That review fetches the description again and rejects stale ALTEN vacancies.
 
-Only vacancies within the last 24 hours are assessed by default. ALTEN provides
-dates without times, so UTC midnight is used conservatively. Unknown dates and
-unfetched details remain manual. Full task/requirement sections feed the existing
-matcher with its German, experience and contract checks. The website radius
-provides the location bound. Use `--max-age-hours 1440` only for an explicit
-historical parser/matcher test; it does not enable posting. The audit records
-coverage, errors, decisions, duplicate evidence and elapsed time.
+Duplicates and possible title/location overlaps are held. The shared notifier
+rechecks permanent history in both directions, including uncertain sends. The
+SQL reservation holds the existing global transaction lock and additionally
+compares ALTEN company aliases, title suffixes/token overlap and requisition IDs.
+This also protects concurrent LinkedIn and website notifications. Reservations
+are never reset and Telegram attempts are never retried. Differently worded
+adverts without shared identifiers can still require manual identification.
 
-The independent `alten-pilot.yml` workflow runs manually (and on the pilot branch
-push), without Telegram credentials. It has no recurring schedule. It must pass
-before considering production integration.
+Deploy `supabase/migrations/20261021084241_alten_cross_source_notifications.sql`
+before enabling `--post`. The collector's audit records listing coverage,
+parsing errors, decisions, duplicate evidence and confirmed sends. Default runs
+make no writes; production uses the configured Supabase and Telegram secrets.

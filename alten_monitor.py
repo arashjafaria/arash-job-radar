@@ -1,4 +1,4 @@
-"""Read-only ALTEN website pilot. Never writes jobs or sends Telegram messages.
+"""ALTEN collector. Read-only by default; --post enables eligible notifications.
 
 Run: python alten_monitor.py --existing-jobs /path/to/snapshot.json
 Without a snapshot, reads ALTEN records/history from the configured Supabase.
@@ -16,8 +16,10 @@ from urllib.parse import urlencode, urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from config import SUPABASE_URL, SUPABASE_SECRET_KEY
-from decisions import fit_decision
+from config import SUPABASE_URL, SUPABASE_SECRET_KEY, BOT_TOKEN, CHAT_ID
+from decisions import fit_decision, record_decision
+from notifications import notify_job_once, was_notified
+from supabase_store import save_job
 from job_matcher import (contract_status, evaluate_fit, experience_status,
                          extract_candidate_experience_years, german_requirement)
 from profile import EXCLUDE_WORDS, MATCHER_REVISION
@@ -133,6 +135,8 @@ def duplicate_check(job, existing):
     """
     possible = None
     for other in existing:
+        if (other.get("source"), str(other.get("job_id"))) == (job["source"], str(job["job_id"])):
+            continue
         if not re.match(r"^alten\b", other.get("company", ""), re.I):
             continue
         reason = None
@@ -198,10 +202,10 @@ def load_existing(session):
         while True:
             columns = "source,job_id,title,company,location,url"
             if table == "arash_jobs":
-                columns += ",status,decision_evidence"
+                columns += ",status,sent_to_telegram,notification_status,decision_evidence"
                 company_field = "company"
             else:
-                columns = "source,job_id,title:title_key,company:company_key,location:location_key,url:url_key"
+                columns = "source,job_id,title:title_key,company:company_key,location:location_key,url:url_key,status:outcome,notification_status:outcome"
                 company_field = "company_key"
             response = session.get(SUPABASE_URL + "/rest/v1/" + table,
                 headers=headers, params={"select": columns, company_field: "ilike.ALTEN*",
@@ -264,6 +268,55 @@ def run(session, existing, max_pages=5, max_details=12, max_age_hours=24, pause=
     return {"summary": summary, "jobs": results}
 
 
+def send_telegram(message):
+    if not BOT_TOKEN or not CHAT_ID:
+        raise RuntimeError("Missing Telegram configuration")
+    # One attempt only. The permanent reservation blocks retries after timeout.
+    response = requests.post("https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage",
+        data={"chat_id": CHAT_ID, "text": message, "disable_web_page_preview": True}, timeout=20)
+    response.raise_for_status()
+    return response.json().get("ok") is True
+
+
+def publish(report, session):
+    if not report["summary"]["listing_complete"]:
+        raise RuntimeError("Incomplete listing; refusing publication")
+    sent, held = 0, 0
+    for job in report["jobs"]:
+        assessment = job["assessment"]
+        if assessment["decision"] not in {"apply", "manual"} or not job.get("description"):
+            continue
+        # Recheck age and history immediately before storing/enqueueing.
+        assessment = assess(job)
+        if assessment["decision"] == "reject":
+            continue
+        existing = load_existing(session)
+        if any(row.get("source") == "alten" and str(row.get("job_id")) == str(job["job_id"])
+               and was_notified(row) for row in existing):
+            held += 1
+            continue
+        duplicate = duplicate_check(job, existing)
+        if duplicate["state"] != "no_match_found":
+            held += 1
+            continue
+        save_job("alten", job["job_id"], title=job["title"], company=job["company"],
+            location=job["location"], url=job["url"], posted_at=job["posted_at"],
+            match_score=assessment.get("score"),
+            status=("apply" if assessment["decision"] == "apply" else "review_required") + "@" + MATCHER_REVISION)
+        evidence = {**assessment, "description": job["description"],
+            "requirements": job["requirements"], "tasks": job["tasks"],
+            "requisition_id": job.get("requisition_id", ""), "stage": "first_match"}
+        record_decision("alten", job["job_id"], assessment["decision"], assessment.get("score"), evidence)
+        if assessment["decision"] == "apply":
+            message = ("✅ ALTEN JOB — " + str(assessment.get("score", "")) + "%\n" +
+                job["title"] + "\nALTEN · " + job["location"] + "\n" + assessment["reason"] + "\n" + job["url"])
+            sent += bool(notify_job_once(job, message, send_telegram))
+    report["summary"].update(mode="production", telegram_messages_sent=sent,
+                            duplicate_holds=held)
+    report["summary"].pop("database_writes", None)
+    return sent
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--existing-jobs", type=Path)
@@ -271,13 +324,18 @@ def main():
     parser.add_argument("--max-pages", type=int, default=5)
     parser.add_argument("--max-details", type=int, default=12)
     parser.add_argument("--max-age-hours", type=float, default=24)
+    parser.add_argument("--post", action="store_true")
     args = parser.parse_args()
     if args.max_pages < 1 or args.max_details < 1 or args.max_age_hours <= 0:
         parser.error("limits must be positive")
+    if args.post and (args.existing_jobs or args.max_age_hours != 24):
+        parser.error("posting requires live duplicate lookup and the 24-hour cutoff")
     with requests.Session() as session:
         session.headers["User-Agent"] = "ArashJobRadar/1.0 (ALTEN read-only pilot)"
         existing = json.loads(args.existing_jobs.read_text()) if args.existing_jobs else load_existing(session)
         report = run(session, existing, args.max_pages, args.max_details, args.max_age_hours)
+        if args.post:
+            publish(report, session)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
     if report["summary"]["detail_errors"] or not report["summary"]["listing_complete"]:

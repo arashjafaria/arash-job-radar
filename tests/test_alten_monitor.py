@@ -44,7 +44,7 @@ class AltenPilotTests(unittest.TestCase):
             alten.parse_detail('<html>No longer available</html>', self.candidate())
 
     def test_tracking_and_language_variant_share_website_identity(self):
-        row = {**self.candidate(), 'url': URL.replace('/en/jobs/', '/jobs/') + '?trk=123'}
+        row = {**self.candidate(), 'job_id': 'mirror', 'url': URL.replace('/en/jobs/', '/jobs/') + '?trk=123'}
         self.assertEqual('duplicate', alten.duplicate_check(self.candidate(), [row])['state'])
 
     def test_reference_matches_pending_linkedin_record(self):
@@ -101,6 +101,68 @@ class AltenPilotTests(unittest.TestCase):
             session.get.return_value.status_code = 503
             with self.assertRaises(RuntimeError):
                 alten.load_existing(session)
+
+    def report(self, decision='apply'):
+        job = alten.parse_detail(DETAIL, self.candidate())
+        job['assessment'] = {'decision': decision, 'reason': 'verified', 'score': 80}
+        return {'summary': {'listing_complete': True, 'database_writes': 0}, 'jobs': [job]}
+
+    def test_publication_rechecks_live_duplicates_and_does_not_store_them(self):
+        report = self.report()
+        row = {**report['jobs'][0], 'source': 'linkedin', 'job_id': 'li', 'url': 'https://linkedin.com/123'}
+        with patch.object(alten, 'assess', return_value=report['jobs'][0]['assessment']), \
+             patch.object(alten, 'load_existing', return_value=[row]), \
+             patch.object(alten, 'save_job') as save, patch.object(alten, 'notify_job_once') as notify:
+            self.assertEqual(0, alten.publish(report, Mock()))
+            save.assert_not_called()
+            notify.assert_not_called()
+
+    def test_eligible_job_uses_shared_notification_reservation(self):
+        report = self.report()
+        with patch.object(alten, 'assess', return_value=report['jobs'][0]['assessment']), \
+             patch.object(alten, 'load_existing', return_value=[]), \
+             patch.object(alten, 'save_job'), patch.object(alten, 'record_decision'), \
+             patch.object(alten, 'notify_job_once', return_value=True) as notify:
+            self.assertEqual(1, alten.publish(report, Mock()))
+            notify.assert_called_once()
+
+    def test_old_job_cannot_be_published_after_scan(self):
+        report = self.report()
+        with patch.object(alten, 'assess', return_value={'decision': 'reject', 'reason': 'older_than_age_limit'}), \
+             patch.object(alten, 'notify_job_once') as notify:
+            self.assertEqual(0, alten.publish(report, Mock()))
+            notify.assert_not_called()
+
+    def test_manual_job_is_queued_without_immediate_telegram(self):
+        report = self.report('manual')
+        with patch.object(alten, 'assess', return_value=report['jobs'][0]['assessment']), \
+             patch.object(alten, 'load_existing', return_value=[]), \
+             patch.object(alten, 'save_job') as save, patch.object(alten, 'record_decision'), \
+             patch.object(alten, 'notify_job_once') as notify:
+            self.assertEqual(0, alten.publish(report, Mock()))
+            self.assertTrue(save.call_args.kwargs['status'].startswith('review_required@'))
+            notify.assert_not_called()
+
+    def test_linkedin_send_is_blocked_by_alten_uncertain_history(self):
+        import notifications
+        job = {**self.candidate(), 'source': 'linkedin', 'job_id': 'li'}
+        history = {**self.candidate(), 'notification_status': 'uncertain'}
+        with patch.object(alten, 'load_existing', return_value=[history]), \
+             patch.object(notifications, 'claim_notification') as claim:
+            sender = Mock()
+            self.assertFalse(notifications.notify_job_once(job, 'test', sender))
+            sender.assert_not_called()
+            claim.assert_not_called()
+
+    def test_alten_second_review_rejects_stale_description(self):
+        from scripts import review_digest
+        job = {**self.candidate(), 'posted_at': '2020-01-01'}
+        detail = alten.parse_detail(DETAIL, job)
+        detail['posted_at'] = '2020-01-01'
+        with patch.object(review_digest, 'fresh_details', return_value=detail):
+            decision, evidence, _ = review_digest.review(job)
+        self.assertEqual('reject', decision)
+        self.assertEqual('older_than_age_limit', evidence['reason'])
 
 
 if __name__ == '__main__':
