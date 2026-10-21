@@ -99,6 +99,11 @@ def fresh_details(row):
 
 
 def review(row):
+    if row["source"] == "alten":
+        from alten_monitor import assess
+        freshness = assess({**row, "posted_at": row.get("posted_at") or "", "description": ""})
+        if freshness["reason"] in {"older_than_age_limit", "future_publication_date", "unknown_publication_date"}:
+            return "reject", {"decision": "reject", "stage": "second_review", "reason": freshness["reason"]}, None
     try:
         details = fresh_details(row)
     except (requests.RequestException, ValueError):
