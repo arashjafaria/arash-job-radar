@@ -72,10 +72,9 @@ def pending_reviews():
 
 def fresh_details(row):
     if row["source"] == "alten":
-        from alten_monitor import parse_detail
-        response = requests.get(row["url"], timeout=25)
-        response.raise_for_status()
-        details = parse_detail(response.text, row)
+        from alten_monitor import fetch_details
+        with requests.Session() as session:
+            details = fetch_details(session, row)
         details["date_posted"] = details["posted_at"]
         return details
     if row["source"] == "linkedin":

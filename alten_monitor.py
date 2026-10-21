@@ -5,6 +5,7 @@ Without a snapshot, reads ALTEN records/history from the configured Supabase.
 """
 import argparse
 import json
+import math
 import re
 import time
 from collections import Counter
@@ -25,6 +26,7 @@ from job_matcher import (contract_status, evaluate_fit, experience_status,
 from profile import EXCLUDE_WORDS, MATCHER_REVISION
 
 BASE = "https://www.alten-germany.de"
+PUBLIC_FEED = "https://api.smartrecruiters.com/v1/companies/ALTEN/postings"
 JOB_PATH = re.compile(r"^/(?:en/)?jobs/((?:\d{4}-\d+|\d{10,}))-[^/]+/$")
 
 
@@ -39,6 +41,9 @@ def canonical_url(value):
 
 def website_id(url):
     parsed = urlparse(url)
+    if parsed.scheme == "https" and parsed.hostname == "jobs.smartrecruiters.com":
+        match = re.match(r"^/ALTEN/(\d+)(?:-|/|$)", parsed.path, re.I)
+        return match.group(1) if match else None
     if parsed.scheme != "https" or parsed.hostname != "www.alten-germany.de":
         return None
     match = JOB_PATH.fullmatch(parsed.path)
@@ -112,6 +117,83 @@ def parse_detail(html, candidate):
             "posted_at": date_iso(meta("Publication date")) or candidate["posted_at"]}
 
 
+def feed_candidate(item):
+    location = item.get("location") or {}
+    if location.get("country", "").lower() != "de":
+        return None
+    try:
+        lat, lon = float(location["latitude"]), float(location["longitude"])
+        if not math.isfinite(lat) or not math.isfinite(lon) or abs(lat)>90 or abs(lon)>180:
+            return None
+        a, b = math.radians(lat - 48.1351253), math.radians(lon - 11.5819805)
+        distance = 6371 * 2 * math.asin(math.sqrt(min(1, math.sin(a/2)**2 +
+            math.cos(math.radians(lat))*math.cos(math.radians(48.1351253))*math.sin(b/2)**2)))
+    except (KeyError, TypeError, ValueError):
+        return None  # Unknown coordinates cannot establish the requested radius.
+    if distance > 25:
+        return None
+    job_id = str(item["id"])
+    if not job_id.isdigit():
+        raise ValueError("Invalid public posting ID")
+    return {"source": "alten", "job_id": job_id, "title": clean(item["name"]),
+        "company": "ALTEN", "location": clean(location.get("city")),
+        "posted_at": item.get("releasedDate") or "", "requisition_id": item.get("refNumber", ""),
+        "url": "https://jobs.smartrecruiters.com/ALTEN/" + job_id,
+        "public_feed": True, "distance_km": round(distance, 2)}
+
+
+def parse_feed_detail(data, candidate):
+    sections = data.get("jobAd", {}).get("sections", {})
+    parsed = {}
+    for field, key in (("tasks", "jobDescription"), ("requirements", "qualifications")):
+        soup = BeautifulSoup(sections.get(key, {}).get("text", ""), "html.parser")
+        values = soup.select("li") or soup.select("p")
+        parsed[field] = [clean(x.get_text(" ", strip=True)) for x in values if clean(x.get_text())]
+        if not parsed[field]:
+            raise ValueError("Public posting missing " + field)
+    # Re-validate coordinates and country on the detail response as well.
+    detail = feed_candidate(data)
+    if not detail or detail["job_id"] != candidate["job_id"]:
+        raise ValueError("Public posting identity/location changed")
+    description = "\n".join(clean(BeautifulSoup(x.get("text", ""), "html.parser").get_text(" ", strip=True))
+                            for x in sections.values())
+    return {**detail, **parsed, "description": description,
+            "employment_type": (data.get("typeOfEmployment") or {}).get("label", "")}
+
+
+def fetch_details(session, candidate):
+    if candidate.get("public_feed") or urlparse(candidate["url"]).hostname == "jobs.smartrecruiters.com":
+        if not str(candidate["job_id"]).isdigit():
+            raise ValueError("Invalid public posting ID")
+        response = session.get(PUBLIC_FEED + "/" + str(candidate["job_id"]), timeout=25)
+        response.raise_for_status()
+        return parse_feed_detail(response.json(), candidate)
+    response = session.get(candidate["url"], timeout=25)
+    response.raise_for_status()
+    return parse_detail(response.text, candidate)
+
+
+def collect_public_feed(session, max_pages):
+    jobs, seen = {}, set()
+    for page in range(max_pages):
+        response = session.get(PUBLIC_FEED, params={"country": "de", "destination": "PUBLIC",
+            "limit": 100, "offset": page*100}, timeout=25)
+        response.raise_for_status()
+        data = response.json()
+        batch = data["content"]
+        new_ids = {str(item["id"]) for item in batch} - seen
+        if not new_ids and len(seen) < data["totalFound"]:
+            raise ValueError("Public posting pagination stopped early")
+        seen.update(new_ids)
+        for item in batch:
+            job = feed_candidate(item)
+            if job:
+                jobs[job["job_id"]] = job
+        if len(seen) >= data["totalFound"]:
+            return jobs, page+1
+    raise ValueError("Public posting pagination cap reached; refusing partial publication")
+
+
 def normalized_title(value):
     value = value.casefold()
     value = re.sub(r"\([^)]*(?:gender|m/w|w/m|m/f)[^)]*\)", " ", value)
@@ -182,7 +264,7 @@ def assess(job, max_age_hours=24, now=None):
     text = job["description"]
     if german_requirement(text)[0]:
         return {"decision": "reject", "reason": "mandatory_advanced_german"}
-    if contract_status({}, text)[0]:
+    if contract_status({"employment type": job.get("employment_type", "")}, text)[0]:
         return {"decision": "reject", "reason": "contract"}
     years = extract_candidate_experience_years(job["requirements"], text)
     if experience_status(years)[0]:
@@ -226,8 +308,15 @@ def load_existing(session):
 def run(session, existing, max_pages=5, max_details=12, max_age_hours=24, pause=.4):
     started = time.monotonic()
     jobs, pages, total = {}, 0, None
+    transport = "website"
     for number in range(1, max_pages + 1):
         response = session.get(search_url(number), timeout=25)
+        if response.status_code == 403:
+            # ALTEN's separate documented PUBLIC recruitment API, without login
+            # or challenge bypass. This is also the website's application ATS.
+            jobs, pages = collect_public_feed(session, max_pages)
+            total, transport = len(jobs), "public_recruitment_feed"
+            break
         response.raise_for_status()
         page_jobs, total = parse_listing(response.text)
         new = [job for job in page_jobs if job["job_id"] not in jobs]
@@ -246,18 +335,17 @@ def run(session, existing, max_pages=5, max_details=12, max_age_hours=24, pause=
         if preliminary["reason"] == "detail_not_fetched" and detail_count < max_details:
             detail_count += 1
             try:
-                response = session.get(candidate["url"], timeout=25)
-                response.raise_for_status()
-                candidate = parse_detail(response.text, candidate)
+                candidate = fetch_details(session, candidate)
             except (requests.RequestException, ValueError) as exc:
                 errors.append({"job_id": candidate["job_id"], "error": type(exc).__name__})
             time.sleep(pause)
         results.append({**candidate, "duplicate_check": duplicate_check(candidate, existing),
                         "assessment": assess(candidate, max_age_hours)})
     summary = {"mode": "read_only_pilot", "matcher_revision": MATCHER_REVISION,
-        "search_url": search_url(1), "radius_km": 25,
+        "search_url": search_url(1), "radius_km": 25, "transport": transport,
         "max_age_hours": max_age_hours,
-        "date_precision": "website gives dates only; UTC midnight used conservatively",
+        "date_precision": ("exact public release timestamps" if transport == "public_recruitment_feed"
+                           else "website gives dates only; UTC midnight used conservatively"),
         "listed": len(jobs), "reported_total": total, "pages": pages,
         "listing_complete": len(jobs) >= total, "details_checked": detail_count,
         "existing_records_checked": len(existing), "detail_errors": errors,

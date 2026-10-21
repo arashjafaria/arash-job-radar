@@ -102,6 +102,13 @@ hourly at minute 17, using Munich coordinates and a 25 km radius. It also runs
 on deployment and can be started manually. Existing LinkedIn/BMW collectors
 continue independently.
 
+If the website returns HTTP 403 to a cloud runner, the collector uses ALTEN's
+documented public SmartRecruiters Posting API (`destination=PUBLIC`, Germany).
+Coordinates enforce the same 25 km radius; missing coordinates are excluded.
+Pagination must complete, and full task/qualification sections are required.
+The public feed provides exact release timestamps and the same posting/reference
+IDs as website jobs. No login, private postings or challenge bypass is used.
+
 `python alten_monitor.py` remains a read-only preview. `--post` enables production
 with live Supabase history and the fixed 24-hour cutoff. Historical snapshots or
 an extended age limit cannot be combined with posting. ALTEN publishes dates

@@ -30,6 +30,43 @@ class AltenPilotTests(unittest.TestCase):
         self.assertEqual(['2'], params['pagenum'])
         self.assertEqual(['date'], params['sortby'])
 
+    def feed_item(self):
+        return {'id': '744000123456789', 'name': 'Test Engineer', 'refNumber': 'REF123L',
+            'releasedDate': '2026-10-21T08:00:00.000Z',
+            'location': {'country': 'de', 'city': 'Munich', 'latitude': '48.1351253', 'longitude': '11.5819805'}}
+
+    def test_public_feed_enforces_radius_and_shares_website_id(self):
+        item = self.feed_item()
+        job = alten.feed_candidate(item)
+        self.assertEqual(alten.website_id(URL), alten.website_id(job['url']))
+        item['location'].update(latitude='52.52', longitude='13.405', city='Berlin')
+        self.assertIsNone(alten.feed_candidate(item))
+        item['location']['latitude'] = 'NaN'
+        self.assertIsNone(alten.feed_candidate(item))
+
+    def test_forbidden_website_uses_only_public_recruitment_feed(self):
+        session = Mock()
+        listing = Mock(status_code=403)
+        feed = Mock(status_code=200)
+        feed.json.return_value = {'totalFound': 1, 'content': [self.feed_item()]}
+        session.get.side_effect = [listing, feed]
+        report = alten.run(session, [], max_age_hours=.001, pause=0)
+        self.assertEqual('public_recruitment_feed', report['summary']['transport'])
+        params = session.get.call_args.kwargs['params']
+        self.assertEqual('PUBLIC', params['destination'])
+        self.assertEqual('de', params['country'])
+
+    def test_feed_detail_requires_both_sections_and_known_location(self):
+        item = self.feed_item()
+        candidate = alten.feed_candidate(item)
+        item['jobAd'] = {'sections': {'jobDescription': {'text': '<ul><li>Test ECUs</li></ul>'},
+                                    'qualifications': {'text': '<ul><li>CANoe experience</li></ul>'}}}
+        detail = alten.parse_feed_detail(item, candidate)
+        self.assertEqual(['CANoe experience'], detail['requirements'])
+        item['location']['country'] = 'fr'
+        with self.assertRaises(ValueError):
+            alten.parse_feed_detail(item, candidate)
+
     def test_cards_and_detail_sections_do_not_include_benefits_as_requirements(self):
         candidate = self.candidate()
         self.assertEqual('2026-10-21', candidate['posted_at'])
