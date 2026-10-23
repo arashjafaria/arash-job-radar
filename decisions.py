@@ -63,13 +63,15 @@ def evaluate_details(row, details):
                 "tasks": tasks, "checks": checks, "stage": "second_review"}
     for rejected, reason in (
         (any(word in title.lower() for word in EXCLUDE_WORDS), "excluded title"),
-        (not loc_ok, loc_reason), (contract_reject, contract_reason),
+        (loc_ok is False, loc_reason), (contract_reject, contract_reason),
         (exp_reject, exp_reason), (language_reject, language_reason),
     ):
         if rejected:
             return "reject", {**evidence, "decision": "reject", "reason": reason}, None
     score, _, warnings, breakdown = evaluate_fit(title, description, requirements, tasks)
     decision, reason = fit_decision(title, score, breakdown)
+    if loc_ok is None and decision != "reject":
+        decision, reason = "manual", loc_reason
     evidence.update(decision=decision, reason=reason, score=score,
                     breakdown=breakdown, warnings=warnings)
     return decision, evidence, score
