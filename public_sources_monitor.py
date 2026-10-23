@@ -1131,6 +1131,12 @@ def evaluate_job(job):
         )
     )
 
+    if location_ok is None:
+        details["_decision_evidence"] = {"decision": "manual", "reason": location_text,
+            "description": details["description_text"], "stage": "first_match"}
+        remember(job, details, "review_required_location")
+        return
+
     if not location_ok:
         remember(
             job,

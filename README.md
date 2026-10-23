@@ -129,3 +129,13 @@ Deploy `supabase/migrations/20261021084241_alten_cross_source_notifications.sql`
 before enabling `--post`. The collector's audit records listing coverage,
 parsing errors, decisions, duplicate evidence and confirmed sends. Default runs
 make no writes; production uses the configured Supabase and Telegram secrets.
+
+## Offline Munich-area locations
+
+All location filters use the bundled GeoNames-derived place lookup in
+`data/german_places.json.gz`. Membership in the 150 km straight-line Munich
+radius is calculated when building the list, never during job scans. Nuremberg
+remains an exception. Unknown or geographically ambiguous names enter review;
+known distant cities are rejected. Prechecks and final checks use the same
+policy, including Oberding. See `data/README.md` for source, attribution,
+coverage, disambiguation and the explicit rebuild command.

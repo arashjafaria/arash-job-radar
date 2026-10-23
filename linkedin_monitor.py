@@ -949,171 +949,16 @@ def location_precheck(
     location
 ):
 
-    low = (
-        location
-        or ""
-    ).lower().strip()
+    # Unknown locations continue to detail/review; only known outside cities
+    # can fail early. Final matching uses the same offline lookup.
+    ok, reason = cv_location_status(location, "")
+    if ok is False and any(term in (location or "").lower() for term in ("remote", "home office", "homeoffice")):
+        return True, "Remote candidate requires description verification"
+    return ok is not False, reason
 
 
-    for city in MUNICH_AREA:
-
-        if city.lower() in low:
-
-            return (
-                True,
-                "Munich / accepted ~150 km area"
-            )
-
-
-    for city in SPECIAL_ONSITE_EXCEPTIONS:
-
-        if city.lower() in low:
-
-            return (
-                True,
-                "Accepted onsite exception"
-            )
-
-
-    if any(
-        term in low
-        for term in [
-            "remote",
-            "home office",
-            "homeoffice",
-        ]
-    ):
-
-        return (
-            True,
-            "Possible remote"
-        )
-
-
-    generic_locations = [
-
-        "germany",
-
-        "deutschland",
-
-        "germany remote",
-
-        "remote germany",
-
-        "bavaria, germany",
-
-        "bayern, deutschland",
-    ]
-
-
-    if low in generic_locations:
-
-        return (
-            True,
-            "Generic Germany/Bavaria location"
-        )
-
-
-    return (
-        False,
-        "Specific location outside Munich area"
-    )
-
-
-# ============================================================
-# FINAL LOCATION CHECK
-# ============================================================
-
-def final_location_check(
-    location,
-    description
-):
-
-    location_low = (
-        location
-        or ""
-    ).lower()
-
-
-    full_text = (
-        (location or "")
-        + " "
-        + (description or "")
-    ).lower()
-
-
-    for city in MUNICH_AREA:
-
-        if city.lower() in location_low:
-
-            return (
-                True,
-                "Munich area"
-            )
-
-
-    negative_remote = [
-
-        "no remote",
-
-        "not remote",
-
-        "remote work is not",
-
-        "remote work not",
-
-        "kein homeoffice",
-
-        "keine homeoffice",
-
-        "kein remote",
-
-        "nicht remote",
-    ]
-
-
-    if any(
-        phrase in full_text
-        for phrase in negative_remote
-    ):
-
-        return (
-            False,
-            "Remote explicitly unavailable"
-        )
-
-
-    remote_found = any(
-        word.lower() in full_text
-        for word in REMOTE_WORDS
-    )
-
-
-    germany_context = any(
-        term in full_text
-        for term in [
-            "germany",
-            "deutschland",
-            "bundesweit",
-        ]
-    )
-
-
-    if (
-        remote_found
-        and germany_context
-    ):
-
-        return (
-            True,
-            "Remote Germany"
-        )
-
-
-    return (
-        False,
-        "Outside Munich area / not Germany remote"
-    )
+def final_location_check(location, description):
+    return cv_location_status(location, description)
 
 
 # ============================================================
@@ -2923,6 +2768,12 @@ def main():
             description
         )
 
+
+        if location_ok is None:
+            job["_decision_evidence"] = {"decision": "manual", "reason": location_status,
+                "description": description, "stage": "first_match"}
+            remember_job(job, "review_required_location")
+            continue
 
         if not location_ok:
 

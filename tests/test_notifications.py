@@ -151,12 +151,12 @@ class TestSecondReview(unittest.TestCase):
         self.assertIn("unavailable", evidence["reason"])
         self.assertIsNone(score)
 
-    def test_4449780097_keeps_existing_location_filter(self):
+    def test_4449780097_uses_geographic_list_instead_of_missing_name_rejection(self):
         row = {**JOB, "job_id": "4449780097", "location": "Lindenberg im Allgäu"}
         decision, evidence, score = evaluate_details(row, {"description": "Engineering test role", "requirements": []})
-        self.assertEqual("reject", decision)
+        self.assertEqual("manual", decision)
         self.assertIn("location", evidence["checks"])
-        self.assertIsNone(score)
+        self.assertIsNotNone(score)
 
     def test_paragraph_requirements_receive_independent_second_extraction(self):
         details = {"description": "Qualifications", "requirements": [], "tasks": [],

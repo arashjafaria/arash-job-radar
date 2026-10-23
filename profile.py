@@ -4,7 +4,7 @@
 # Updated: 2026-09-28
 # ============================================================
 
-MATCHER_REVISION = "2026-10-13-german-policy"
+MATCHER_REVISION = "2026-10-23-offline-city-list"
 
 ARASH_EXPERIENCE_YEARS = 3.0
 MAX_REQUIRED_EXPERIENCE_YEARS = 3
@@ -34,71 +34,11 @@ DRIVING_LICENSE_B = True
 # Remote jobs anywhere in Germany are also accepted.
 # ============================================================
 
-MUNICH_AREA = [
-    "münchen", "munich",
-    "greater munich metropolitan area",
-    "metropolregion münchen",
-
-    "garching", "garching bei münchen",
-    "unterföhring", "ismaning", "eching",
-    "neufahrn", "neufahrn bei freising",
-    "unterschleißheim", "oberschleißheim",
-    "hallbergmoos", "freising", "erding",
-
-    "aschheim", "feldkirchen",
-    "kirchheim", "kirchheim bei münchen",
-    "poing", "haar", "vaterstetten",
-    "markt schwaben", "ebersberg",
-
-    "ottobrunn", "unterhaching", "taufkirchen",
-    "neubiberg", "hohenbrunn", "brunnthal",
-    "oberhaching", "pullach", "pullach im isartal",
-    "grünwald",
-
-    "dachau", "karlsfeld", "fürstenfeldbruck",
-    "germering", "puchheim", "olching",
-    "gröbenzell", "maisach",
-
-    "gräfelfing", "planegg", "krailling",
-    "gauting", "starnberg",
-
-    # Extended ~150 km area
-    "augsburg",
-    "ingolstadt",
-    "rosenheim",
-    "landshut",
-    "regensburg",
-    "ulm",
-    "memmingen",
-    "kaufbeuren",
-    "kempten",
-    "traunstein",
-    "bad tölz",
-    "bad toelz",
-    "holzkirchen",
-    "miesbach",
-    "wasserburg am inn",
-    "wasserburg",
-    "pfaffenhofen an der ilm",
-    "pfaffenhofen",
-    "neuburg an der donau",
-    "neuburg",
-    "manching",
-    "dingolfing",
-    "deggendorf",
-    "gilching",
-    "wessling",
-    "weßling",
-    "kaufering",
-    "donauwörth",
-    "donauwoerth",
-    "landsberg am lech",
-    "landsberg",
-    "weilheim",
-    "wolfratshausen",
-    "murnau",
-    "garmisch-partenkirchen",
-]
+# Compatibility export for old integrations. Runtime decisions must use
+# location_lookup.onsite_location to retain ambiguity/state handling.
+from location_lookup import data as _place_data
+MUNICH_AREA = tuple(name for name, rows in _place_data()["places"].items()
+                    if all(row[1] for row in rows))
 
 
 SPECIAL_ONSITE_EXCEPTIONS = [

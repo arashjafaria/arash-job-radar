@@ -921,42 +921,8 @@ def location_match(
     full_text
 ):
 
-    haystack = (
-        (
-            location_text
-            + " "
-            + full_text
-        )
-        .lower()
-    )
+    return cv_location_status(location_text, full_text)
 
-    for city in MUNICH_AREA:
-
-        if city in haystack:
-
-            return (
-                True,
-                "Munich area"
-            )
-
-    for word in REMOTE_WORDS:
-
-        if word in haystack:
-
-            return (
-                True,
-                "Remote / hybrid"
-            )
-
-    return (
-        False,
-        "Outside preferred area"
-    )
-
-
-# ============================================================
-# EXPERIENCE REQUIREMENT
-# ============================================================
 
 def extract_experience_years(
     text
@@ -1737,6 +1703,14 @@ def main():
                 full_text
             )
         )
+
+        if location_ok is None:
+            metadata = {"source": "bmw", "job_id": job["url"], "title": job["title"],
+                        "company": "BMW Group", "location": details.get("location", ""), "url": job["url"]}
+            save_job(**metadata, posted_at=details.get("date_posted", ""), status="review_required_location@" + MATCHER_REVISION)
+            record_decision("bmw", job["url"], "review_required_location", evidence={
+                "decision": "manual", "reason": location_status, "description": full_text, "stage": "first_match"})
+            continue
 
         if not location_ok:
 

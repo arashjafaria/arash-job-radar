@@ -1,5 +1,7 @@
 import re
 
+from location_lookup import onsite_location
+
 from profile import (
     ARASH_EXPERIENCE_YEARS,
     MAX_REQUIRED_EXPERIENCE_YEARS,
@@ -2287,29 +2289,15 @@ def location_status(
         + (description or "")
     ).lower()
 
-    for city in MUNICH_AREA:
-        if _term_present(
-            city,
-            location_low,
-        ):
-            return (
-                True,
-                "Onsite/hybrid within accepted Munich ~150 km area",
-            )
-
-    for city in SPECIAL_ONSITE_EXCEPTIONS:
-        if _term_present(
-            city,
-            location_low,
-        ):
-            return (
-                True,
-                "Accepted onsite exception: Nuremberg",
-            )
+    onsite_ok, onsite_reason = onsite_location(location)
+    if onsite_ok is True:
+        return True, onsite_reason
 
     negative_remote = [
         "no remote",
         "not remote",
+        "not to become a fully remote",
+        "not fully remote",
         "kein remote",
         "nicht remote",
         "kein homeoffice",
@@ -2359,10 +2347,8 @@ def location_status(
             "Fully remote in Germany",
         )
 
-    return (
-        False,
-        "Onsite/hybrid location outside accepted ~150 km Munich area",
-    )
+    return onsite_ok, onsite_reason
+
 
 
 def is_senior_title(title):

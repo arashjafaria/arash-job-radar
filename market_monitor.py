@@ -643,31 +643,12 @@ def evaluate_candidate(page, candidate):
 
     loc_ok, loc_text = cv_location_status(details["location"], details["description"])
 
-    # StepStone/Indeed location searches are themselves bounded. If the
-    # source returned the job inside our Munich-radius or explicit Nuremberg
-    # search, accept that source context even when the static city list does
-    # not yet contain a nearby town such as Wessling, Kaufering or Manching.
-    if (
-        not loc_ok
-        and candidate.get("search_area") == "Munich"
-        and candidate.get("source") in {"stepstone", "indeed"}
-        and not is_austria_location(
-            details["location"]
-        )
-    ):
-        loc_ok = True
-        loc_text = "Within source Munich-radius search"
-
-    if (
-        not loc_ok
-        and candidate.get("search_area") == "Nuremberg"
-        and candidate.get("source") in {"stepstone", "indeed"}
-        and not is_austria_location(
-            details["location"]
-        )
-    ):
-        loc_ok = True
-        loc_text = "Accepted Nuremberg search area"
+    if loc_ok is None:
+        details["_decision_evidence"] = {"decision": "manual", "reason": loc_text,
+            "description": details["description"], "requirements": details["requirements"],
+            "tasks": details["tasks"], "stage": "first_match"}
+        remember(candidate, details, "review_required_location")
+        return False
 
     if not loc_ok:
         print("  Rejected location:", loc_text, "|", details["location"])
