@@ -4,6 +4,7 @@ Telegram has no idempotency key. Prefer a missed/uncertain notification to a
 duplicate: never release reservations or retry a Telegram request.
 """
 import uuid
+from delivery_policy import delivery_block_reason
 
 from supabase_store import save_job, update_job, claim_notification, finish_notification
 
@@ -19,6 +20,10 @@ def compact_message(message, url=""):
 
 def notify_job_once(job, message, sender):
     source, job_id = job["source"], str(job["job_id"])
+    blocked = delivery_block_reason(job)
+    if blocked:
+        print("Notification held by title/location policy:", source, job_id, blocked)
+        return False
     if (job.get("company") or "").lower().startswith("alten"):
         # Applies in both directions, including LinkedIn and second reviews.
         # Fail closed on lookup errors; history includes uncertain sends.

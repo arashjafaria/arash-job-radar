@@ -50,7 +50,7 @@ class TestReviewQueue(unittest.TestCase):
 
     def test_second_review_stores_decision_before_guarded_notification(self):
         rows = [{"source": "linkedin", "job_id": "x", "title": "Engineer",
-                 "company": "Example", "url": "https://example.invalid"}]
+                 "company": "Example", "location": "Munich", "url": "https://example.invalid"}]
         with (
             patch.object(review_digest, "pending_reviews", return_value=rows),
             patch.object(review_digest, "review", return_value=("apply", {"decision": "apply", "reason": "gates passed"}, 85)),

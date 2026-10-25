@@ -23,3 +23,8 @@ manual review. Identically named minor settlements do not override a dominant
 city (population at least 20,000 and ten times the next candidate). State names
 can disambiguate candidates. The runtime never accepts an unknown name solely
 because LinkedIn returned it from a radius search.
+
+Runtime policy additionally excludes Geislingen an der Steige and Leonberg
+from onsite delivery at the user's request (2026-10-25). These explicit overrides
+do not alter the precomputed data. Unresolved places stay in an internal hold;
+they are not sent to Telegram as manual-review opportunities.

@@ -4,7 +4,7 @@
 # Updated: 2026-09-28
 # ============================================================
 
-MATCHER_REVISION = "2026-10-23-offline-city-list"
+MATCHER_REVISION = "2026-10-25-title-and-location-delivery"
 
 ARASH_EXPERIENCE_YEARS = 3.0
 MAX_REQUIRED_EXPERIENCE_YEARS = 3

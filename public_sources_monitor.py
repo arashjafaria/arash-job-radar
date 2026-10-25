@@ -1,4 +1,5 @@
 import json
+from title_policy import excluded_title_reason
 import os
 import re
 import time
@@ -818,15 +819,7 @@ def age_days(value):
 
 
 def excluded_title(title):
-    low = (
-        title
-        or ""
-    ).lower()
-
-    return any(
-        term in low
-        for term in EXCLUDE_WORDS
-    )
+    return bool(excluded_title_reason(title))
 
 
 def current_record(job):
@@ -1307,7 +1300,7 @@ def evaluate_job(job):
     )
 
     remember(job, details, "apply", score)
-    if notify_job_once({**job, **{k: details.get(k, "") for k in ("title", "company", "location")}}, message, send_telegram):
+    if notify_job_once({**job, **{k: details.get(k, "") for k in ("title", "company", "location")}, "description": details["description_text"]}, message, send_telegram):
         remember(
             job,
             details,
