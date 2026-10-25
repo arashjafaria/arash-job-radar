@@ -1,4 +1,5 @@
 import hashlib
+from title_policy import excluded_title_reason
 import html
 import json
 import re
@@ -617,7 +618,7 @@ def evaluate_candidate(page, candidate):
     print("\n" + "-" * 70)
     print(candidate["source_name"], "|", candidate.get("title", ""), "|", candidate["job_id"])
 
-    if excluded(candidate.get("title", "")):
+    if excluded_title_reason(candidate.get("title", "")):
         print("  Rejected: excluded title.")
         remember(candidate, None, "rejected_title")
         return False
@@ -629,6 +630,9 @@ def evaluate_candidate(page, candidate):
 
     audit_candidate(candidate, details, "parsed")
     candidate["title"] = details["title"] or candidate.get("title", "")
+    if excluded_title_reason(candidate["title"]):
+        remember(candidate, details, "rejected_title")
+        return False
     full_text = candidate["title"] + " " + details["description"]
 
     if excluded(details["employment_type"]):
@@ -736,7 +740,7 @@ def evaluate_candidate(page, candidate):
     if DRY_RUN:
         return send_long(message)
     remember(candidate, details, "apply", score)
-    if notify_job_once({**candidate, **{k: details.get(k, "") for k in ("title", "company", "location")}}, message, send_telegram):
+    if notify_job_once({**candidate, **{k: details.get(k, "") for k in ("title", "company", "location")}, "description": details["description"]}, message, send_telegram):
         remember(candidate, details, "sent", score, True)
         return True
 

@@ -9,6 +9,8 @@ from decisions import evaluate_details, record_decision
 from notifications import notify_job_once
 from supabase_store import _check_config, _request, update_job
 from review_priority import prioritize
+from title_policy import excluded_title_reason
+from delivery_policy import delivery_block_reason
 
 MAX_PER_RUN = 25
 NEW_JOB_SLOTS = 20
@@ -98,6 +100,9 @@ def fresh_details(row):
 
 
 def review(row):
+    excluded = excluded_title_reason(row.get("title"))
+    if excluded:
+        return "reject", {"decision": "reject", "stage": "second_review", "reason": excluded}, None
     if row["source"] == "alten":
         from alten_monitor import assess
         freshness = assess({**row, "posted_at": row.get("posted_at") or "", "description": ""})
@@ -169,11 +174,20 @@ def main():
             update_job(row["source"], row["job_id"], match_score=score,
                        status="rejected_review@" + MATCHER_REVISION)
             continue
+        notification_job = {**row, "title": evidence.get("title") or row.get("title", ""),
+                            "location": evidence.get("location") or row.get("location", ""),
+                            "description": evidence.get("description", "")}
+        blocked = delivery_block_reason(notification_job)
+        if blocked:
+            update_job(row["source"], row["job_id"], match_score=score,
+                       status="location_review_hold@" + MATCHER_REVISION)
+            print("Held for location verification; no Telegram:", row["source"], row["job_id"], blocked)
+            continue
         label = "✅ APPLY" if decision == "apply" else "⚠️ MANUAL REVIEW"
         message = label + (f" — {score}%" if score is not None else "")
         message += "\n" + str(row.get("title", "")) + "\n" + str(row.get("company", ""))
         message += "\n" + evidence["reason"] + "\n" + str(row.get("url", ""))
-        notify_job_once(row, message, send_telegram)
+        notify_job_once(notification_job, message, send_telegram)
         update_job(row["source"], row["job_id"], match_score=score,
                    status=("apply" if decision == "apply" else "manual_review") + "@" + MATCHER_REVISION)
     print(f"Review batch completed: {processed}/{len(rows)} jobs evaluated.")

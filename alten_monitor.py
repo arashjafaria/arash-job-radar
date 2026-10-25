@@ -4,6 +4,7 @@ Run: python alten_monitor.py --existing-jobs /path/to/snapshot.json
 Without a snapshot, reads ALTEN records/history from the configured Supabase.
 """
 import argparse
+from title_policy import excluded_title_reason
 import json
 import math
 import re
@@ -255,7 +256,7 @@ def assess(job, max_age_hours=24, now=None):
         return {"decision": "manual", "reason": "future_publication_date"}
     if age > max_age_hours:
         return {"decision": "reject", "reason": "older_than_age_limit"}
-    if any(word in job["title"].lower() for word in EXCLUDE_WORDS):
+    if excluded_title_reason(job["title"]):
         return {"decision": "reject", "reason": "excluded_title"}
     if re.search(r"business manager|account manager|manager sales|manager competence center|assistenz", job["title"], re.I):
         return {"decision": "reject", "reason": "sales_or_administrative_role"}

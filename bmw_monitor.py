@@ -1,4 +1,5 @@
 import json
+from title_policy import excluded_title_reason
 import os
 import html
 import re
@@ -1637,7 +1638,7 @@ def main():
             job["title"]
         )
 
-        if is_excluded(
+        if excluded_title_reason(
             job["title"]
         ):
 
@@ -1952,7 +1953,7 @@ def main():
             "MATCH -> Telegram"
         )
 
-        telegram_ok = notify_job_once(metadata, message, send_telegram)
+        telegram_ok = notify_job_once({**metadata, "description": full_text}, message, send_telegram)
 
         if telegram_ok:
             sent_count += 1

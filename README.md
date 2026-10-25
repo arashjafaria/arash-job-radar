@@ -139,3 +139,16 @@ remains an exception. Unknown or geographically ambiguous names enter review;
 known distant cities are rejected. Prechecks and final checks use the same
 policy, including Oberding. See `data/README.md` for source, attribution,
 coverage, disambiguation and the explicit rebuild command.
+
+Unknown or ambiguous locations are retained internally for verification and
+are never sent as Telegram manual-review messages. Every notification source
+uses a final title/location guard, including queued jobs and missing-detail
+fallbacks. `Greater <city> Area` and metropolitan labels resolve to the named
+city. Generic hybrid/home-working language does not establish fully remote work.
+Geislingen an der Steige and Leonberg are explicit onsite exclusions requested
+by the user; the underlying radius remains 150 km straight-line distance.
+
+Titles containing the separate term `IT`, `Electrical Engineer` or `Mechanical
+Engineer` (including Elektroingenieur/Maschinenbauingenieur) are excluded.
+These rules inspect titles, not degrees or tools mentioned in descriptions.
+Student thesis titles such as Bachelorand and Masterand are also excluded.

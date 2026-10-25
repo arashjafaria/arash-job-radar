@@ -1,4 +1,5 @@
 import os
+from title_policy import excluded_title_reason
 import re
 import time
 from datetime import datetime, timezone
@@ -843,17 +844,7 @@ def send_long_message(text):
 # ============================================================
 
 def title_is_excluded(title):
-
-    low = (
-        title
-        or ""
-    ).lower()
-
-
-    return any(
-        word.lower() in low
-        for word in EXCLUDE_WORDS
-    )
+    return bool(excluded_title_reason(title))
 
 
 # ============================================================

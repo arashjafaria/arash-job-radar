@@ -6,6 +6,18 @@ import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
+# User exclusions, 2026-10-25. These do not change the 150 km definition.
+EXCLUDED_ONSITE_CITIES = {'geislingen an der steige', 'geislingen', 'leonberg'}
+
+
+def city_field(value):
+    name = normalize(value.split(',')[0])
+    name = re.sub(r'^\d{5}\s+', '', name)
+    # LinkedIn metropolitan labels refer to the named city; no substring scan.
+    name = re.sub(r'^greater\s+(.+?)\s+(?:area|metropolitan area|region)$', r'\1', name)
+    name = re.sub(r'^(?:metropolregion|raum|grossraum)\s+', '', name)
+    return re.sub(r'\s+\d+\s+km$', '', name)
+
 
 def normalize(value):
     value = value.casefold().replace('ß', 'ss')
@@ -32,10 +44,9 @@ def onsite_location(location):
     if any(re.search(r'\b' + country + r'\b', low) for country in
            ('austria', 'oesterreich', 'switzerland', 'schweiz', 'france', 'italy', 'italien', 'netherlands')):
         return False, 'Onsite location outside Germany'
-    if low in {'greater munich metropolitan area', 'metropolregion muenchen'}:
-        return True, 'Accepted Munich metropolitan area'
     pieces = re.split(r'\s*(?:/|;|\||\band\b|\bund\b)\s*', location or '', flags=re.I)
     outcomes = []
+    user_excluded = False
     for piece in pieces:
         states, context = set(), normalize(','.join(piece.split(',')[1:]))
         for alias, code in sorted(lookup['states'].items(), key=lambda row: len(row[0]), reverse=True):
@@ -44,9 +55,11 @@ def onsite_location(location):
                 states.add(code)
                 context = re.sub(pattern, ' ', context)
         # Match complete city fields; never match Erding inside Oberding.
-        name = normalize(piece.split(',')[0])
-        name = re.sub(r'^\d{5}\s+', '', name)
-        name = re.sub(r'\s+\d+\s+km$', '', name)
+        name = city_field(piece)
+        if name in EXCLUDED_ONSITE_CITIES:
+            user_excluded = True
+            outcomes.append(False)
+            continue
         rows = lookup['places'].get(name, [])
         if states:
             rows = [row for row in rows if row[0] in states]
@@ -62,5 +75,7 @@ def onsite_location(location):
     if True in outcomes:
         return True, 'Onsite/hybrid in saved Munich 150 km list or Nuremberg exception'
     if outcomes and all(value is False for value in outcomes):
+        if user_excluded:
+            return False, 'Onsite city explicitly excluded by user'
         return False, 'Known city outside Munich 150 km list and onsite exceptions'
     return None, 'Location needs review: unknown or ambiguous city'

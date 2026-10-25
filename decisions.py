@@ -6,9 +6,13 @@ from job_matcher import (
 from profile import MATCHER_REVISION, MIN_MATCH_PERCENT, SENIOR_MIN_MATCH_PERCENT, EXCLUDE_WORDS
 from supabase_store import save_decision
 from review_priority import build_priority
+from title_policy import excluded_title_reason
 
 
 def fit_decision(title, score, breakdown):
+    excluded_reason = excluded_title_reason(title)
+    if excluded_reason:
+        return "reject", excluded_reason
     if breakdown.get("review_required"):
         missing = []
         if not breakdown.get("requirements_evidence"):
@@ -60,9 +64,10 @@ def evaluate_details(row, details):
     checks = {"location": loc_reason, "contract": contract_reason,
               "experience": exp_reason, "language": language_reason}
     evidence = {"title": title, "description": description, "requirements": requirements,
+                "location": details.get("location") or row.get("location", ""),
                 "tasks": tasks, "checks": checks, "stage": "second_review"}
     for rejected, reason in (
-        (any(word in title.lower() for word in EXCLUDE_WORDS), "excluded title"),
+        (bool(excluded_title_reason(title)), excluded_title_reason(title) or "excluded title"),
         (loc_ok is False, loc_reason), (contract_reject, contract_reason),
         (exp_reject, exp_reason), (language_reject, language_reason),
     ):

@@ -2316,8 +2316,6 @@ def location_status(
         "remote in germany",
         "deutschlandweit remote",
         "bundesweit remote",
-        "work from home",
-        "working from home",
     ]
 
     remote_found = any(
