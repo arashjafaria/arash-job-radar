@@ -152,3 +152,22 @@ Titles containing the separate term `IT`, `Electrical Engineer` or `Mechanical
 Engineer` (including Elektroingenieur/Maschinenbauingenieur) are excluded.
 These rules inspect titles, not degrees or tools mentioned in descriptions.
 Student thesis titles such as Bachelorand and Masterand are also excluded.
+# FERCHAU direct source
+
+`python ferchau_monitor.py` performs a read-only scan. `--post` enables its separate
+Telegram feed; `.github/workflows/ferchau-radar.yml` runs it hourly at minute 27.
+It uses FERCHAU's public job portal (the recruiting homepage is an open application
+form), structured task/requirement lists, and the existing title, language,
+employment and Munich-area delivery policies. Publication dates come from each
+vacancy's JobPosting metadata; recently edited old adverts are excluded. The cutoff
+is 24 hours, conservatively using UTC midnight for date-only publication dates.
+Missing data, incomplete pagination and failed history lookups stop publication.
+Manual matches are explicitly labelled and sent directly after the structured
+assessment. They do not enter the LinkedIn second-review queue.
+
+Permanent notification reservations, FERCHAU title/location comparisons and FE/LI
+reference aliases prevent cross-source repeats. Matching uncertain titles may be
+held conservatively. Database reservations share the existing global transaction
+lock, including simultaneous LinkedIn/website runs. `--existing-jobs snapshot.json`
+is available for dry-runs only. Full original requirements remain in the audit;
+optional clauses are excluded from mandatory skill scoring.

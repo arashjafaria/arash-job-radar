@@ -1,0 +1,40 @@
+name: FERCHAU website job radar
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '27 * * * *'
+  push:
+    branches: [main]
+    paths: [ferchau_monitor.py, .github/workflows/ferchau-radar.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ferchau-job-radar
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_ID: ${{ secrets.CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install requests beautifulsoup4
+      - run: python -m unittest discover -s tests -p test_ferchau_monitor.py -v
+      - run: python ferchau_monitor.py --post --output ferchau_audit.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ferchau-${{ github.run_id }}
+          path: ferchau_audit.json
+          retention-days: 14
