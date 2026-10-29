@@ -24,6 +24,14 @@ def notify_job_once(job, message, sender):
     if blocked:
         print("Notification held by title/location policy:", source, job_id, blocked)
         return False
+    if (job.get("company") or "").lower().startswith("ferchau"):
+        import requests
+        from ferchau_monitor import load_existing, duplicate
+        with requests.Session() as session:
+            existing = load_existing(session)
+        if duplicate(job, existing):
+            print("FERCHAU notification held by cross-source history:", source, job_id)
+            return False
     if (job.get("company") or "").lower().startswith("alten"):
         # Applies in both directions, including LinkedIn and second reviews.
         # Fail closed on lookup errors; history includes uncertain sends.

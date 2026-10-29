@@ -30,6 +30,7 @@ class TestNotificationDatabase(unittest.TestCase):
             cls.sql = (Path(__file__).parents[1] / "migrations/20261011_decisions_and_notifications.sql").read_text()
             db.execute(cls.sql)
             db.execute((Path(__file__).parents[1] / 'supabase/migrations/20261021084241_alten_cross_source_notifications.sql').read_text())
+            db.execute((Path(__file__).parents[1] / 'supabase/migrations/20261029003010_ferchau_cross_source_notifications.sql').read_text())
 
     def setUp(self):
         with self.psycopg.connect(DSN, autocommit=True) as db:
@@ -76,6 +77,17 @@ class TestNotificationDatabase(unittest.TestCase):
         with self.psycopg.connect(DSN) as db:
             flag = db.execute("SELECT sent_to_telegram FROM arash_jobs WHERE job_id='legacy-digest'").fetchone()[0]
         self.assertTrue(flag)
+
+    def test_concurrent_ferchau_reference_alias_has_one_winner(self):
+        self.add_job('linkedin', 'li-ferchau', title='System Engineer', company='FERCHAU GmbH')
+        self.add_job('ferchau', 'web-ferchau', title='Systems Integration Engineer', company='FERCHAU')
+        with self.psycopg.connect(DSN, autocommit=True) as db:
+            db.execute("UPDATE public.arash_jobs SET decision_evidence=jsonb_build_object('description', 'Reference LI54-31505-M') WHERE job_id='li-ferchau'")
+            db.execute("UPDATE public.arash_jobs SET decision_evidence=jsonb_build_object('requisition_id', 'FE54-31505-M') WHERE job_id='web-ferchau'")
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            outcomes = list(workers.map(lambda args: self.claim(*args),
+                [('linkedin', 'li-ferchau', 'a'), ('ferchau', 'web-ferchau', 'b')]))
+        self.assertEqual(1, outcomes.count(True))
 
     def test_response_lost_before_send_can_retry_same_reservation_token(self):
         self.add_job()
