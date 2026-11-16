@@ -5,6 +5,7 @@ from profile import EXCLUDE_WORDS
 
 
 TITLE_RULES = (
+    (r"\bfull[\s\-‐‑‒–—]*stack\b", "Full Stack title excluded by user"),
     (r'\bit\b', 'IT title excluded by user'),
     (r'\belectrical[\s-]+engineers?\b|\belektroingenieur\w*\b', 'Electrical Engineer title excluded by user'),
     (r'\bmechanical[\s-]+engineers?\b|\bmaschinenbauingenieur\w*\b', 'Mechanical Engineer title excluded by user'),
