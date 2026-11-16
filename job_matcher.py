@@ -1837,7 +1837,13 @@ def evaluate_fit(
     fail_open = False
     gates_pass = normal_pass
 
+    from cad_policy import cad_block_reason
+    cad_reason = cad_block_reason(requirements, description)
+    if cad_reason:
+        gates_pass = review_required = exceptional_fit_pass = False
+
     breakdown = {
+        "hard_reject_reason": cad_reason,
         "requirements": requirement_fit,
         "core_requirements": core_fit,
         "responsibilities": responsibility_fit,

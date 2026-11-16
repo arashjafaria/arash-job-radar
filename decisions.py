@@ -13,6 +13,8 @@ def fit_decision(title, score, breakdown):
     excluded_reason = excluded_title_reason(title)
     if excluded_reason:
         return "reject", excluded_reason
+    if breakdown.get("hard_reject_reason"):
+        return "reject", breakdown["hard_reject_reason"]
     if breakdown.get("review_required"):
         missing = []
         if not breakdown.get("requirements_evidence"):
