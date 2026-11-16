@@ -11,6 +11,7 @@ from supabase_store import _check_config, _request, update_job
 from review_priority import prioritize
 from title_policy import excluded_title_reason
 from delivery_policy import delivery_block_reason
+from description_policy import fpga_block_reason
 
 MAX_PER_RUN = 25
 NEW_JOB_SLOTS = 20
@@ -118,6 +119,12 @@ def review(row):
         if freshness["reason"] in {"older_than_age_limit", "future_publication_date", "unknown_publication_date"}:
             return "reject", {"decision": "reject", "stage": "second_review", "reason": freshness["reason"]}, None
     if not details or not (details.get("description") or details.get("description_text")):
+        stored = row.get("decision_evidence") or {}
+        reason = fpga_block_reason(stored.get("description"), *(stored.get("requirements") or ()),
+                                   *(stored.get("tasks") or ()))
+        if reason:
+            return "reject", {**stored, "decision": "reject", "stage": "second_review",
+                              "reason": reason}, None
         return "manual", {"decision": "manual", "stage": "second_review",
                           "reason": "fresh job description unavailable; cannot verify requirements"}, None
     result = evaluate_details(row, details)
