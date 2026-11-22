@@ -182,6 +182,26 @@ def get_job_record(
     return rows[0]
 
 
+def get_job_records(source, job_ids):
+    """One small metadata request per 100 cards; no description payloads."""
+    import json
+    _check_config()
+    ids = list(dict.fromkeys(str(value) for value in job_ids))
+    records = {}
+    for start in range(0, len(ids), 100):
+        batch = ids[start:start + 100]
+        response = _request("GET", params={
+            "select": "job_id,status,sent_to_telegram,notification_status,posted_at",
+            "source": f"eq.{source}",
+            "job_id": "in.(" + ",".join(json.dumps(value) for value in batch) + ")",
+            "limit": "100",
+        })
+        if response.status_code != 200:
+            raise RuntimeError(f"Supabase batch history lookup failed: HTTP {response.status_code}")
+        records.update({str(row["job_id"]): row for row in response.json()})
+    return records
+
+
 # ============================================================
 # SAVE NEW JOB
 # ============================================================

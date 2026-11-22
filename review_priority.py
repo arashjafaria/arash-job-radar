@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 
 
-VERSION = 1
+VERSION = 2
 
 
 def percent(value):
@@ -18,7 +18,7 @@ def build_priority(evidence):
         return {"version": VERSION, "base": 0, "known": False, "components": {}}
     coverage = percent(b.get("evidence_coverage_percent")) / 100
     tasks = b.get("responsibility_details") or []
-    task_coverage = sum(float(item.get("weight", 0)) >= 2 for item in tasks) / len(tasks) if tasks else 0
+    task_coverage = sum(item.get("verified", False) or ("verified" not in item and item.get("reason") in {"Direct tool/technology overlap", "Direct responsibility overlap", "Transferable engineering task", "Transferable task in a different domain"}) for item in tasks) / len(tasks) if tasks else 0
     # A percentage based on a few recognised phrases must not dominate the queue.
     components = {
         "core_fit": round(25 * percent(b.get("core_requirements")) / 100 * coverage, 2)
@@ -42,6 +42,8 @@ def instant(value):
 def queue_priority(row, now=None):
     now = now or datetime.now(timezone.utc)
     saved = row.get("review_priority") or (row.get("decision_evidence") or {}).get("review_priority")
+    if saved and saved.get("version") != VERSION and (row.get("decision_evidence") or {}).get("breakdown"):
+        saved = None
     saved = saved or build_priority(row.get("decision_evidence"))
     base = max(0, min(85, percent(saved.get("base"))))
     posted = instant(row.get("posted_at"))

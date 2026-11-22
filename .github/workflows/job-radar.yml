@@ -47,3 +47,11 @@ jobs:
       - name: Validate that BMW source and database actually worked
         run: python -m scripts.live_health bmw bmw_run.log
 
+
+      - name: Preserve trial metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: radar-trial-${{ github.run_id }}
+          path: run-metrics.json
+          retention-days: 30

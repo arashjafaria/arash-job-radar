@@ -38,6 +38,7 @@ from job_matcher import (
 from supabase_store import (
     job_exists,
     get_job_record,
+    get_job_records,
     save_job,
     update_job,
     find_sent_duplicate,
@@ -483,7 +484,7 @@ def posting_changed(current, stored):
         return current != stored
 
 
-def already_seen(job):
+def already_seen(job, records=None):
 
     if TEST_MODE:
 
@@ -492,12 +493,8 @@ def already_seen(job):
 
     try:
 
-        record = get_job_record(
-            SOURCE,
-            str(
-                job["job_id"]
-            )
-        )
+        record = (records.get(str(job["job_id"])) if records is not None
+                  else get_job_record(SOURCE, str(job["job_id"])))
 
         if not record:
 
@@ -2533,6 +2530,7 @@ def main():
     # ========================================================
 
     jobs_to_check = []
+    records = {} if TEST_MODE else get_job_records(SOURCE, [job["job_id"] for job in all_jobs.values()])
 
 
     for job in all_jobs.values():
@@ -2546,9 +2544,7 @@ def main():
             continue
 
 
-        if already_seen(
-            job
-        ):
+        if already_seen(job, records):
 
             print(
                 "Already in Supabase:",
@@ -3169,6 +3165,9 @@ def main():
         "=" * 70
     )
 
+    from scripts.trial_metrics import record_counts
+    record_counts(discovered=len(all_jobs), new=len(jobs_to_check), detail_requests=detail_requests, detail_failures=detail_failures, matched=matches, sent=sent, stored=stored)
+
     print(
         "LINKEDIN + SUPABASE SUMMARY"
     )
@@ -3226,5 +3225,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from scripts.trial_metrics import start
+    start()
 
     main()

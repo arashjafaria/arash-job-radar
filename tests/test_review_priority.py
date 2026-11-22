@@ -14,7 +14,7 @@ def evidence(core=90, requirements=90, tasks=90, coverage=90):
     return {"breakdown": {"core_requirements": core, "core_evidence": core > 0,
             "requirements": requirements, "responsibilities": tasks,
             "evidence_coverage_percent": coverage,
-            "responsibility_details": [{"weight": 4}]}}
+            "responsibility_details": [{"weight": 1, "verified": True}]}}
 
 
 def row(name, base, age=0, wait=0):
@@ -39,6 +39,17 @@ class TestReviewPriority(unittest.TestCase):
         e = evidence()
         e["breakdown"]["responsibility_details"] = [{"weight": 0}] * 8
         self.assertEqual(0, build_priority(e)["components"]["task_fit"])
+
+    def test_real_matcher_tasks_receive_priority(self):
+        from job_matcher import evaluate_responsibilities
+        score, details = evaluate_responsibilities(["UDS diagnostics", "Testdurchführung und Testauswertung"])
+        e = evidence()
+        e["breakdown"].update(responsibilities=score, responsibility_details=details)
+        self.assertGreater(build_priority(e)["components"]["task_fit"], 0)
+
+    def test_saved_v1_priority_is_recomputed_from_existing_evidence(self):
+        candidate = {"review_priority": {"version": 1, "base": 0}, "decision_evidence": evidence()}
+        self.assertGreater(queue_priority(candidate, NOW), 0)
 
     def test_recency_is_capped_and_never_an_age_rejection(self):
         self.assertEqual(15, queue_priority(row("fresh", 0), NOW))

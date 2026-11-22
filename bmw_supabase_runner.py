@@ -565,5 +565,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from scripts.trial_metrics import start
+    start()
 
     main()

@@ -197,8 +197,12 @@ def main():
         notify_job_once(notification_job, message, send_telegram)
         update_job(row["source"], row["job_id"], match_score=score,
                    status=("apply" if decision == "apply" else "manual_review") + "@" + MATCHER_REVISION)
+    from scripts.trial_metrics import record_counts
+    record_counts(queue_selected=len(rows), reviewed=processed)
     print(f"Review batch completed: {processed}/{len(rows)} jobs evaluated.")
 
 
 if __name__ == "__main__":
+    from scripts.trial_metrics import start
+    start()
     main()
