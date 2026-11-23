@@ -4,7 +4,7 @@
 # Updated: 2026-09-28
 # ============================================================
 
-MATCHER_REVISION = "2026-10-25-title-and-location-delivery"
+MATCHER_REVISION = "2026-11-23-remote-mobile-location"
 
 ARASH_EXPERIENCE_YEARS = 3.0
 MAX_REQUIRED_EXPERIENCE_YEARS = 3

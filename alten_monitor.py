@@ -119,6 +119,8 @@ def parse_detail(html, candidate):
 
 
 def feed_candidate(item):
+    from remote_policy import offers_remote_work
+    remote = offers_remote_work(item.get("name", ""))
     location = item.get("location") or {}
     if location.get("country", "").lower() != "de":
         return None
@@ -130,8 +132,10 @@ def feed_candidate(item):
         distance = 6371 * 2 * math.asin(math.sqrt(min(1, math.sin(a/2)**2 +
             math.cos(math.radians(lat))*math.cos(math.radians(48.1351253))*math.sin(b/2)**2)))
     except (KeyError, TypeError, ValueError):
-        return None  # Unknown coordinates cannot establish the requested radius.
-    if distance > 25:
+        if not remote:
+            return None  # Onsite positions still need verified coordinates.
+        distance = None
+    if distance is not None and distance > 25 and not remote:
         return None
     job_id = str(item["id"])
     if not job_id.isdigit():
@@ -140,7 +144,7 @@ def feed_candidate(item):
         "company": "ALTEN", "location": clean(location.get("city")),
         "posted_at": item.get("releasedDate") or "", "requisition_id": item.get("refNumber", ""),
         "url": "https://jobs.smartrecruiters.com/ALTEN/" + job_id,
-        "public_feed": True, "distance_km": round(distance, 2)}
+        "public_feed": True, "distance_km": round(distance, 2) if distance is not None else None}
 
 
 def parse_feed_detail(data, candidate):

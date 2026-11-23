@@ -57,7 +57,7 @@ def evaluate_details(row, details):
     description = details.get("description") or details.get("description_text", "")
     requirements, tasks = details.get("requirements", []), details.get("tasks", [])
     full_text = title + " " + description
-    loc_ok, loc_reason = location_status(details.get("location") or row.get("location", ""), description)
+    loc_ok, loc_reason = location_status(details.get("location") or row.get("location", ""), description, title)
     contract_reject, contract_reason = contract_status(
         details.get("criteria") or {"employment type": details.get("employment_type", "")}, description)
     years = extract_candidate_experience_years(requirements, description)

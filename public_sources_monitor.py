@@ -1121,6 +1121,7 @@ def evaluate_job(job):
             details[
                 "description_text"
             ],
+            job.get("title", ""),
         )
     )
 

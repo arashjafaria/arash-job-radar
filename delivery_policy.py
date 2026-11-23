@@ -17,7 +17,7 @@ def delivery_block_reason(job):
         job.get("tasks") or evidence.get("tasks"))
     if reason:
         return reason
-    allowed, reason = location_status(job.get('location', ''), description)
+    allowed, reason = location_status(job.get('location', ''), description, job.get('title', '') or evidence.get('title', ''))
     if allowed is not True:
         return reason
     return None

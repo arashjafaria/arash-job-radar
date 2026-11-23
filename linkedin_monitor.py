@@ -933,20 +933,17 @@ def employment_type_status(
 # LOCATION PRE-CHECK
 # ============================================================
 
-def location_precheck(
-    location
-):
-
-    # Unknown locations continue to detail/review; only known outside cities
-    # can fail early. Final matching uses the same offline lookup.
-    ok, reason = cv_location_status(location, "")
-    if ok is False and any(term in (location or "").lower() for term in ("remote", "home office", "homeoffice")):
-        return True, "Remote candidate requires description verification"
-    return ok is not False, reason
+def location_precheck(location, title=""):
+    ok, reason = cv_location_status(location, "", title)
+    # A card outside the onsite area may offer mobile work only in its detail.
+    # Geography can be rejected only after that text has been read.
+    if ok is not True:
+        return True, "Read description before deciding onsite/remote eligibility"
+    return True, reason
 
 
-def final_location_check(location, description):
-    return cv_location_status(location, description)
+def final_location_check(location, description, title=""):
+    return cv_location_status(location, description, title)
 
 
 # ============================================================
@@ -2637,9 +2634,7 @@ def main():
             (
                 location_candidate,
                 pre_location_status,
-            ) = location_precheck(
-                job["location"]
-            )
+            ) = location_precheck(job["location"], job["title"])
 
 
         if not location_candidate:
@@ -2752,7 +2747,8 @@ def main():
             location_status,
         ) = cv_location_status(
             job["location"],
-            description
+            description,
+            job["title"]
         )
 
 
