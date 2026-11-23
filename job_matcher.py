@@ -2293,78 +2293,11 @@ def contract_status(
 # LOCATION
 # ============================================================
 
-def location_status(
-    location,
-    description,
-):
-    location_low = (
-        location
-        or ""
-    ).lower()
-
-    full = (
-        (location or "")
-        + " "
-        + (description or "")
-    ).lower()
-
-    onsite_ok, onsite_reason = onsite_location(location)
-    if onsite_ok is True:
-        return True, onsite_reason
-
-    negative_remote = [
-        "no remote",
-        "not remote",
-        "not to become a fully remote",
-        "not fully remote",
-        "kein remote",
-        "nicht remote",
-        "kein homeoffice",
-        "keine homeoffice",
-    ]
-
-    # Outside the accepted onsite radius, only genuinely remote
-    # Germany roles are accepted. Generic "home office" / hybrid
-    # wording is not enough because the user does not want recurring
-    # onsite travel beyond the accepted area.
-    strict_remote_terms = [
-        "fully remote",
-        "100% remote",
-        "remote germany",
-        "remote within germany",
-        "remote in germany",
-        "deutschlandweit remote",
-        "bundesweit remote",
-    ]
-
-    remote_found = any(
-        term in full
-        for term in strict_remote_terms
-    )
-
-    germany_context = any(
-        term in full
-        for term in [
-            "germany",
-            "deutschland",
-            "bundesweit",
-        ]
-    )
-
-    if (
-        remote_found
-        and germany_context
-        and not any(
-            phrase in full
-            for phrase in negative_remote
-        )
-    ):
-        return (
-            True,
-            "Fully remote in Germany",
-        )
-
-    return onsite_ok, onsite_reason
+def location_status(location, description, title=""):
+    from remote_policy import offers_remote_work
+    if offers_remote_work(title, description, location):
+        return True, "Remote/mobile work offered; city restriction waived"
+    return onsite_location(location)
 
 
 

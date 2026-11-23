@@ -645,7 +645,7 @@ def evaluate_candidate(page, candidate):
         remember(candidate, details, "rejected_age")
         return False
 
-    loc_ok, loc_text = cv_location_status(details["location"], details["description"])
+    loc_ok, loc_text = cv_location_status(details["location"], details["description"], candidate.get("title", ""))
 
     if loc_ok is None:
         details["_decision_evidence"] = {"decision": "manual", "reason": loc_text,

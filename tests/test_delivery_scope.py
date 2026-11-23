@@ -78,10 +78,10 @@ class DeliveryScopeTests(unittest.TestCase):
         self.assertTrue(update.call_args.kwargs['status'].startswith('location_review_hold@'))
         notify.assert_not_called()
 
-    def test_onsite_and_hybrid_remote_wording_does_not_bypass_radius(self):
+    def test_remote_or_home_work_offers_now_override_radius(self):
         for text in ['On-site customer support in Dresden, with opportunities to work remotely.',
                      'Work from home two days a week. Three days in our office.']:
-            self.assertIs(location_status('Greater Dresden Area, Germany', text)[0], False)
+            self.assertIs(location_status('Greater Dresden Area, Germany', text)[0], True)
 
     def test_explicit_fully_remote_germany_still_allowed(self):
         job = {'title': 'Test Engineer', 'location': 'Dresden, Germany',

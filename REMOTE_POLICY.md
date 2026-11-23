@@ -1,0 +1,7 @@
+# Remote and mobile-work location policy
+
+At the user's request (23 November 2026), an affirmative remote/mobile-work offer in an advertisement's title or description overrides the city restriction. Plain Remote, remotely, Mobilarbeit, mobiles Arbeiten, mobile Arbeit, home office/Homeoffice, and working from home are recognized. A fully-remote or Germany-wide qualifier is no longer necessary; partial mobile work also counts. Negated remote work and technical terms such as remote control or remote sensing do not count as work arrangements. Onsite-only jobs retain the existing geographic scope.
+
+The rule is shared by matching, second review, and the last check before Telegram delivery. LinkedIn cards must reach the description check before a distant city can reject them. The ALTEN public-feed precheck also retains remote titles outside its onsite radius. Existing sources and discovery search queries remain unchanged; discovery is still limited by each source's search results and available descriptions. All other title, language, experience, contract, skills and description exclusions still apply. Unknown or inaccessible descriptions do not become verified matches. Permanent notification history remains intact.
+
+The matcher revision is advanced so encountered earlier rejections can be reconsidered once. Fresh unnotified location holds can be returned to review once, without deleting history or forcing publication. Rollback uses a revert of this PR, preserving all notification claims and history.

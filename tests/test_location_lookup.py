@@ -49,7 +49,7 @@ class OfflinePlaceTests(unittest.TestCase):
 
     def test_remote_germany_policy(self):
         self.assertTrue(location_status('Berlin, Germany', 'This role is fully remote in Germany.')[0])
-        self.assertIs(location_status('Berlin, Germany', 'Hybrid office with homeoffice days.')[0], False)
+        self.assertIs(location_status('Berlin, Germany', 'Hybrid office with homeoffice days.')[0], True)
         self.assertIs(location_status('Berlin, Germany', 'We decided not to become a fully remote company.')[0], False)
 
     def test_unknown_location_cannot_become_automatic_apply(self):
