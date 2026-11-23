@@ -127,7 +127,7 @@ def feed_candidate(item):
     try:
         lat, lon = float(location["latitude"]), float(location["longitude"])
         if not math.isfinite(lat) or not math.isfinite(lon) or abs(lat)>90 or abs(lon)>180:
-            return None
+            raise ValueError("Invalid coordinates")
         a, b = math.radians(lat - 48.1351253), math.radians(lon - 11.5819805)
         distance = 6371 * 2 * math.asin(math.sqrt(min(1, math.sin(a/2)**2 +
             math.cos(math.radians(lat))*math.cos(math.radians(48.1351253))*math.sin(b/2)**2)))

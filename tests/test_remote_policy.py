@@ -42,6 +42,8 @@ class RemotePolicyTests(unittest.TestCase):
         from alten_monitor import feed_candidate
         item = {'id':'1234', 'name':'Test Engineer Remote', 'location':{'country':'de','city':'Berlin','latitude':52.52,'longitude':13.405}}
         self.assertIsNotNone(feed_candidate(item))
+        item['location']['latitude'] = 'NaN'
+        self.assertIsNotNone(feed_candidate(item))
         item['name'] = 'Test Engineer Onsite'
         self.assertIsNone(feed_candidate(item))
 
