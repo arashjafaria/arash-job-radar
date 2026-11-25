@@ -2296,7 +2296,7 @@ def contract_status(
 def location_status(location, description, title=""):
     from remote_policy import offers_remote_work
     if offers_remote_work(title, description, location):
-        return True, "Remote/mobile work offered; city restriction waived"
+        return True, "Full remote work explicitly offered; city restriction waived"
     return onsite_location(location)
 
 
