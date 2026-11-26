@@ -2,8 +2,6 @@ name: ALTEN website job radar
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 * * * *'
   push:
     branches: [main]
     paths: [alten_monitor.py, tests/test_alten_monitor.py, .github/workflows/alten-pilot.yml]

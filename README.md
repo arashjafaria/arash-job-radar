@@ -7,7 +7,9 @@
 | BMW | `job-radar.yml` | External five-minute dispatcher | Yes, for eligible matches |
 | LinkedIn | `linkedin-radar.yml` | External five-minute dispatcher, internally gated to real scans every 15 minutes | Yes, for eligible matches |
 | StepStone | `market-radar.yml` | Mondays 06:00 UTC, or safe manual dry run | **No** — dry run only |
-| Indeed | No production activation | None | **No** — known HTTP 403 |
+| Indeed + XING | `job-boards.yml` | External hourly dispatcher at minute 09 | Yes, after live access/description validation |
+| ALTEN | `alten-pilot.yml` | External hourly dispatcher at minute 17 | Yes, for eligible matches |
+| FERCHAU | `ferchau-radar.yml` | External hourly dispatcher at minute 27 | Yes, for eligible matches |
 | Regression & independent source health | `quality-gates.yml` | Every relevant code change and daily 05:45 UTC | Only on daily failure |
 | Second-stage review | `review-digest.yml` | Supabase dispatcher every 15 minutes | Only never-notified opportunities, through permanent reservations |
 
@@ -19,7 +21,7 @@ The legacy `public_sources_monitor.py` is deliberately absent from the BMW workf
 2. Check the GitHub Actions quality-gate result for the exact commit. No live APIs, Supabase writes, or Telegram job notifications occur in these regression tests.
 3. The independent weekly StepStone workflow always uses `MARKET_DRY_RUN=1`. It archives `market_scan.log`, `market_health.json`, and `market_audit.jsonl`. It fails if it cannot extract any actual job descriptions. The simulated `sent` count means **potential matches, never notifications delivered**.
 4. Manually label a diverse set of **40–50 real advertisements**, spanning relevant, adjacent, clearly unrelated and missing-information jobs. Evaluate false positives and false negatives separately. The repository does not yet contain that completed real-world benchmark.
-5. **Do not** switch `MARKET_DRY_RUN` to `0` or add Indeed to `MARKET_SOURCES` until the benchmark passes, access is permitted/reliable, and deployment is separately approved.
+5. Keep the legacy `market-radar.yml` StepStone validation in dry-run mode. Indeed production uses the separately tested `job-boards.yml`, authorized on 26 November 2026.
 6. Second-stage review fetches a fresh description, retries section extraction, and persists `apply`, `reject`, or `manual` with a specific reason. Unclassified requirements remain manual; a retry does not invent CV evidence.
 
 Second-stage review handles up to 25 jobs per run within a five-minute processing
@@ -171,3 +173,43 @@ held conservatively. Database reservations share the existing global transaction
 lock, including simultaneous LinkedIn/website runs. `--existing-jobs snapshot.json`
 is available for dry-runs only. Full original requirements remain in the audit;
 optional clauses are excluded from mandatory skill scoring.
+
+## Indeed and XING (26 November 2026)
+
+`job_boards_monitor.py --source indeed|xing` reads public search cards and full
+JobPosting descriptions. It is read-only by default; `--post` uses the existing
+Arash matcher, final delivery guard and atomic notification reservation.
+`job-boards.yml` validates each board separately before production, so a blocked
+board does not prevent the other from running. No login, CAPTCHA bypass, paid
+provider or new secret is required. Access may differ between local and GitHub
+runners; inspect the live workflow, not just local tests.
+
+Each hourly run rotates three of the existing twelve engineering search terms
+through Munich, Nuremberg and Germany-wide remote searches. Search-radius
+support depends on the board; final eligibility always uses the shared Munich
+area/fully-remote policy. Discovery is a bounded sample, not exhaustive market
+coverage. Up to twenty new descriptions per board are assessed; known assessed
+cards do not consume that budget. A verified publication timestamp within the
+last 24 hours is required; unknown, future, expired and older adverts are held
+out of Telegram. No timestamp reset or arbitrary historical reposting occurs.
+
+APPLY and uncertain MANUAL REVIEW matches are labelled and delivered through the
+same permanent claims as other sources, after all hard filters and the final
+location guard. Unknown cities stay internal. Same source ID/link stays blocked;
+cross-source title/company/location and ALTEN/FERCHAU reference guards continue.
+`scripts/board_url_keys.sql` preserves Indeed's `jk` identity while discarding
+tracking fields; deploy it before enabling Indeed production. It changes no
+claim, delivery outcome, or LinkedIn repost rule.
+
+`scripts/website_schedule.sql` installs a private invoker dispatcher and three
+hourly jobs for Indeed/XING, ALTEN and FERCHAU using the existing Arash Vault
+credential. The GitHub-only ALTEN/FERCHAU cron schedules were replaced because
+observed runs were many hours apart. Existing LinkedIn, BMW, review and Maryam
+schedules are untouched. Daily independent health checks now include these
+website workflows (90-minute freshness limit). Source audits and metrics are
+retained for 30 days; access failures fail the workflow, individual unavailable
+vacancies are counted as degraded when other descriptions remain readable.
+
+Rollback: stop the three named website cron jobs and revert this release commit.
+Keep all job and notification history. The URL normalizer can safely remain:
+it preserves identity and does not allow retrying any attempted notification.
