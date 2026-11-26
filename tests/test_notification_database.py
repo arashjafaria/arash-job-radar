@@ -32,10 +32,13 @@ class TestNotificationDatabase(unittest.TestCase):
             db.execute((Path(__file__).parents[1] / 'supabase/migrations/20261021084241_alten_cross_source_notifications.sql').read_text())
             db.execute((Path(__file__).parents[1] / 'supabase/migrations/20261029003010_ferchau_cross_source_notifications.sql').read_text())
 
+            db.execute((Path(__file__).parents[1] / 'scripts/allow_linkedin_reposts.sql').read_text())
+
     def setUp(self):
         with self.psycopg.connect(DSN, autocommit=True) as db:
             db.execute("DELETE FROM public.arash_jobs WHERE job_id <> 'legacy-digest'")
             db.execute("DELETE FROM public.arash_notification_history WHERE job_id <> 'legacy-digest'")
+            db.execute((Path(__file__).parents[1] / 'scripts/allow_linkedin_reposts.sql').read_text())
 
     def add_job(self, source="linkedin", job_id="same-id", title="Test Engineer", company="Example GmbH", location="Munich"):
         with self.psycopg.connect(DSN, autocommit=True) as db:
@@ -49,6 +52,24 @@ class TestNotificationDatabase(unittest.TestCase):
     def finish(self, token, delivered):
         with self.psycopg.connect(DSN, autocommit=True) as db:
             return db.execute("SELECT public.finish_job_notification('linkedin','same-id',%s,%s)", (token, delivered)).fetchone()[0]
+
+    def test_new_linkedin_posting_id_with_same_title_is_allowed(self):
+        self.add_job(job_id="old")
+        self.assertTrue(self.claim("linkedin", "old", "a"))
+        with self.psycopg.connect(DSN, autocommit=True) as db:
+            db.execute("SELECT public.finish_job_notification('linkedin','old','a',true)")
+        self.add_job(job_id="new")
+        self.assertTrue(self.claim("linkedin", "new", "b"))
+        self.assertFalse(self.claim("linkedin", "old", "another"))
+
+    def test_old_suppression_can_be_reassessed_without_releasing_a_delivery(self):
+        self.add_job(job_id="old")
+        self.assertTrue(self.claim("linkedin", "old", "old-token"))
+        self.add_job(job_id="new")
+        with self.psycopg.connect(DSN, autocommit=True) as db:
+            db.execute("INSERT INTO public.arash_notification_history(source,job_id,token,outcome) VALUES('linkedin','new','previous','suppressed')")
+        self.assertTrue(self.claim("linkedin", "new", "fresh-token"))
+        self.assertFalse(self.claim("linkedin", "new", "another"))
 
     def test_concurrent_same_job_has_exactly_one_winner(self):
         self.add_job()
