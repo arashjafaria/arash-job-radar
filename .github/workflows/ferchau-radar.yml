@@ -2,8 +2,6 @@ name: FERCHAU website job radar
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '27 * * * *'
   push:
     branches: [main]
     paths: [ferchau_monitor.py, .github/workflows/ferchau-radar.yml]

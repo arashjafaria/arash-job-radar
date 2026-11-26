@@ -33,12 +33,14 @@ class TestNotificationDatabase(unittest.TestCase):
             db.execute((Path(__file__).parents[1] / 'supabase/migrations/20261029003010_ferchau_cross_source_notifications.sql').read_text())
 
             db.execute((Path(__file__).parents[1] / 'scripts/allow_linkedin_reposts.sql').read_text())
+            db.execute((Path(__file__).parents[1] / 'scripts/board_url_keys.sql').read_text())
 
     def setUp(self):
         with self.psycopg.connect(DSN, autocommit=True) as db:
             db.execute("DELETE FROM public.arash_jobs WHERE job_id <> 'legacy-digest'")
             db.execute("DELETE FROM public.arash_notification_history WHERE job_id <> 'legacy-digest'")
             db.execute((Path(__file__).parents[1] / 'scripts/allow_linkedin_reposts.sql').read_text())
+            db.execute((Path(__file__).parents[1] / 'scripts/board_url_keys.sql').read_text())
 
     def add_job(self, source="linkedin", job_id="same-id", title="Test Engineer", company="Example GmbH", location="Munich"):
         with self.psycopg.connect(DSN, autocommit=True) as db:
@@ -52,6 +54,21 @@ class TestNotificationDatabase(unittest.TestCase):
     def finish(self, token, delivered):
         with self.psycopg.connect(DSN, autocommit=True) as db:
             return db.execute("SELECT public.finish_job_notification('linkedin','same-id',%s,%s)", (token, delivered)).fetchone()[0]
+
+    def test_indeed_distinct_query_ids_and_tracking_variants(self):
+        with self.psycopg.connect(DSN, autocommit=True) as db:
+            key = lambda url: db.execute("SELECT public.job_notification_key(%s,'url')", (url,)).fetchone()[0]
+            self.assertEqual(key('https://de.indeed.com/viewjob?jk=abc12345&from=email'),
+                             key('https://www.indeed.com/rc/clk?x=1&jk=abc12345'))
+            self.assertNotEqual(key('https://de.indeed.com/viewjob?jk=abc12345'),
+                                key('https://de.indeed.com/viewjob?jk=def67890'))
+        self.add_job('indeed', 'abc12345', title='Test Engineer')
+        self.add_job('indeed', 'def67890', title='Validation Engineer')
+        with self.psycopg.connect(DSN, autocommit=True) as db:
+            db.execute("UPDATE public.arash_jobs SET url='https://de.indeed.com/viewjob?jk=' || job_id WHERE source='indeed'")
+        self.assertTrue(self.claim('indeed', 'abc12345', 'one'))
+        self.assertTrue(self.claim('indeed', 'def67890', 'two'))
+        self.assertFalse(self.claim('indeed', 'abc12345', 'retry'))
 
     def test_new_linkedin_posting_id_with_same_title_is_allowed(self):
         self.add_job(job_id="old")

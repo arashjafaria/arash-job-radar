@@ -1,0 +1,63 @@
+name: Arash Indeed and XING
+on:
+  workflow_dispatch:
+    inputs:
+      post:
+        description: Send eligible new jobs through permanent duplicate protection
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths: [job_boards_monitor.py, .github/workflows/job-boards.yml]
+permissions:
+  contents: read
+concurrency:
+  group: arash-job-boards
+  cancel-in-progress: false
+jobs:
+  scan:
+    strategy:
+      fail-fast: false
+      matrix:
+        source: [indeed, xing]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_ID: ${{ secrets.CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -r requirements.txt
+      - name: Validate live search and descriptions without posting
+        run: python job_boards_monitor.py --source ${{ matrix.source }} --max-details 5 --output board_validation.json
+      - name: Assess and publish eligible new jobs
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.post }}
+        run: python job_boards_monitor.py --source ${{ matrix.source }} --post --output board_production.json
+      - name: Preserve source decisions and health
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: board-${{ matrix.source }}-${{ github.run_id }}
+          path: |
+            board_validation.json
+            board_production.json
+            run-metrics.json
+          retention-days: 30
+      - name: Source summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              for path in ('board_validation.json', 'board_production.json'):
+                  if Path(path).exists():
+                      data = json.loads(Path(path).read_text())
+                      out.write('### ' + data['source'] + ' ' + data['mode'] + '\n\n')
+                      out.write('```json\n' + json.dumps({k:v for k,v in data.items() if k!='jobs'},indent=2) + '\n```\n')
+          PY
