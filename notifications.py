@@ -29,6 +29,8 @@ def notify_job_once(job, message, sender):
         from ferchau_monitor import load_existing, duplicate
         with requests.Session() as session:
             existing = load_existing(session)
+        if source == "linkedin":
+            existing = [row for row in existing if row.get("source") != source]
         if duplicate(job, existing):
             print("FERCHAU notification held by cross-source history:", source, job_id)
             return False
@@ -39,6 +41,8 @@ def notify_job_once(job, message, sender):
         from alten_monitor import load_existing, duplicate_check
         with requests.Session() as session:
             existing = [row for row in load_existing(session) if was_notified(row)]
+        if source == "linkedin":
+            existing = [row for row in existing if row.get("source") != source]
         if duplicate_check(job, existing)["state"] != "no_match_found":
             print("ALTEN notification held by cross-source history:", source, job_id)
             return False
