@@ -76,6 +76,7 @@ SEARCH_QUERY_GROUPS = [
         "Test and Validation Engineer",
         "Testingenieur",
         "System Tester",
+        "AI Integration Engineer",
     ],
     [
         "System Integration Engineer",
@@ -83,6 +84,7 @@ SEARCH_QUERY_GROUPS = [
         "Anforderungsingenieur",
         "Verification Engineer",
         "Validation Engineer",
+        "Engineering Automation Engineer",
     ],
     [
         "Automotive Test Engineer",
@@ -90,6 +92,7 @@ SEARCH_QUERY_GROUPS = [
         "ADAS Test Engineer",
         "Radar Test Engineer",
         "ECU Diagnostics Engineer",
+        "AI Application Engineer Automotive",
     ],
     [
         "Software Test Engineer",
@@ -97,6 +100,7 @@ SEARCH_QUERY_GROUPS = [
         "Forschungs- und Entwicklungsingenieur",
         "HIL Test Engineer",
         "System Engineer",
+        "Vehicle Engineering Automation",
     ],
 ]
 
@@ -1812,9 +1816,12 @@ def extract_sections(
                 "strong",
                 "b",
                 "li",
+                "p",
             ]
         )
     ):
+        if element.find_parent(["p", "li"]):
+            continue
 
         text = clean(
             element.get_text(
@@ -1825,9 +1832,25 @@ def extract_sections(
 
 
         if not text:
-
             continue
-
+        heading_text = text.strip("【】[] :：").lower()
+        if re.fullmatch(r"privacy(?: statement| policy| notice)?|datenschutz(?:erklärung|hinweis)?|"
+                        r"benefits|what we offer|wir bieten|das bieten wir", heading_text):
+            current = "ignored"
+            continue
+        if len(text) <= 120 and (element.name in {"h2", "h3", "h4", "h5", "strong", "b"}
+                                 or (element.name == "p" and element.find(["strong", "b"]))):
+            section = heading_type(text)
+            if section != "other":
+                current = section
+                continue
+        if current == "ignored":
+            continue
+        # Numbered bold subheadings describe the following paragraph; do
+        # not double-count them as separate responsibilities.
+        if (element.name == "p" and len(text) <= 120
+                and element.find(["strong", "b"]) and re.match(r"^\d+[.)]\s", text)):
+            continue
 
         if element.name in [
             "h2",
@@ -1869,7 +1892,7 @@ def extract_sections(
                 continue
 
 
-        if element.name == "li":
+        if element.name in {"li", "p"}:
 
             if text not in result[
                 current

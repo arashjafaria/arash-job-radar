@@ -877,6 +877,27 @@ def _admin_result(text):
     return None
 
 
+def requirement_is_optional(text):
+    """Preference wording cannot establish a mandatory skill or CV evidence.
+
+    Explicit mandatory wording in the same atomic clause wins. Mixed clauses
+    are separated before scoring, so a preferred tool cannot waive a required one.
+    """
+    low = clean(text).lower()
+    optional = re.search(
+        r"\b(?:preferred|preferably|ideally|optional|desirable|beneficial|nice[ -]to[ -]have|"
+        r"bonus|(?:an? |strong |added )*advantage|a plus|wünschenswert(?:e|en|er|es)?|wuenschenswert(?:e|en|er|es)?|"
+        r"idealerweise|von vorteil|ein plus|von nutzen)\b|"
+        r"\bnot (?:strictly )?(?:required|mandatory|essential)\b|"
+        r"\b(?:nicht erforderlich|keine voraussetzung)\b", low)
+    mandatory_text = re.sub(r"\bnot (?:strictly )?(?:required|mandatory|essential)\b|"
+                            r"\bnicht erforderlich\b|\bkeine voraussetzung\b", "", low)
+    mandatory = re.search(
+        r"\b(?:required|mandatory|must|essential|necessary|minimum|at least|"
+        r"zwingend|erforderlich|voraussetzung|notwendig|unabdingbar|mindestens)\b", mandatory_text)
+    return bool(optional and not mandatory)
+
+
 def split_requirement_phrase(text):
     """
     Split compound requirement bullets into meaningful atomic clauses.
@@ -895,6 +916,18 @@ def split_requirement_phrase(text):
         BENEFIT_TERMS,
         phrase,
     ):
+        return [phrase]
+
+    # A sentence/semicolon closes the scope of an optional modifier. Keep
+    # coordinated optional skills together ("ML and LLMs are an advantage").
+    protected = re.sub(r"\b(?:z\.\s*B\.|e\.g\.|i\.e\.|bzw\.|inkl\.|etc\.)",
+                       lambda match: match.group().replace(".", "\u2024"), phrase, flags=re.I)
+    sentences = [part.replace("\u2024", ".") for part in
+                 re.split(r"(?<=[.!?])\s+(?=[A-ZÄÖÜ])|\s*;\s*", protected)]
+    if len(sentences) > 1:
+        return [part for sentence in sentences if clean(sentence)
+                for part in split_requirement_phrase(sentence)]
+    if requirement_is_optional(phrase):
         return [phrase]
 
     parts = re.split(
@@ -945,6 +978,15 @@ def evaluate_requirement_phrase(text):
             "category": "benefit",
             "core": False,
             "reason": "Benefit/non-requirement; excluded from scoring",
+        }
+
+    if requirement_is_optional(phrase):
+        skills = detected_skill_scores(phrase)
+        return {
+            "text": phrase,
+            "score": max((item["fit"] for item in skills.values()), default=0),
+            "weight": 0.0, "category": "optional", "core": False,
+            "reason": "Optional/preferred qualification; excluded from mandatory fit and core evidence",
         }
 
     admin = _admin_result(

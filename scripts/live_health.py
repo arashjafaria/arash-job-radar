@@ -25,19 +25,19 @@ def assess_log(source, log):
 
         fully_healthy = (
             count > 0
-            and len(search_http) == 5
-            and successful == 5
+            and len(search_http) == 6
+            and successful == 6
             and summary_present
         )
 
-        # LinkedIn occasionally rate-limits a single one of the five rotating
+        # LinkedIn occasionally rate-limits a single one of the six rotating
         # searches. Treat exactly one HTTP 429 as a degraded-but-usable scan
-        # when the other four searches succeeded and the monitor still
+        # when the other five searches succeeded and the monitor still
         # produced jobs. Persistent or broader blocking remains a hard failure.
         degraded_usable = (
             count > 0
-            and len(search_http) == 5
-            and successful == 4
+            and len(search_http) == 6
+            and successful == 5
             and transient_429 == 1
             and summary_present
         )
