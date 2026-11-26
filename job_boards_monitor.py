@@ -218,6 +218,7 @@ def run(source, post=False, max_details=20, queries=None):
     report = {'source': source, 'mode': 'production' if post else 'dry_run',
               'searches_ok': 0, 'search_errors': [], 'jobs': [], 'detail_errors': []}
     candidates = {}
+    blocked = False
     with requests.Session() as session:
         for query in queries:
             for url in search_urls(source, query):
@@ -229,8 +230,14 @@ def run(source, post=False, max_details=20, queries=None):
                     report['searches_ok'] += 1
                     candidates.update({job['job_id']: job for job in jobs})
                 except (requests.RequestException, ValueError) as exc:
-                    report['search_errors'].append(type(exc).__name__)
+                    status = exc.response.status_code if isinstance(exc, requests.HTTPError) and exc.response is not None else None
+                    report['search_errors'].append({'error': type(exc).__name__, 'http_status': status})
+                    if status in {403, 429}:
+                        blocked = True
+                        break
                 time.sleep(.3)
+            if blocked:
+                break
         checked = 0
         for candidate in candidates.values():
             # Known/excluded cards don't consume the description request budget.

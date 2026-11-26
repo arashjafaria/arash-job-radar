@@ -213,3 +213,11 @@ vacancies are counted as degraded when other descriptions remain readable.
 Rollback: stop the three named website cron jobs and revert this release commit.
 Keep all job and notification history. The URL normalizer can safely remain:
 it preserves identity and does not allow retrying any attempted notification.
+
+Initial deployment verification: XING passed the GitHub live-description gate
+and entered production assessment. Indeed's GitHub runner was blocked, despite
+successful local access, so its production step stayed off. The hourly source
+check remains configured and stops after the first HTTP 403/429; it will not
+attempt a challenge bypass. Indeed cannot be described as a working live feed
+until a server run passes. An approved alternative input such as the user's
+Indeed email alerts would require a separately configured server mail connection.
