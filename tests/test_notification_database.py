@@ -38,6 +38,7 @@ class TestNotificationDatabase(unittest.TestCase):
         with self.psycopg.connect(DSN, autocommit=True) as db:
             db.execute("DELETE FROM public.arash_jobs WHERE job_id <> 'legacy-digest'")
             db.execute("DELETE FROM public.arash_notification_history WHERE job_id <> 'legacy-digest'")
+            db.execute((Path(__file__).parents[1] / 'scripts/allow_linkedin_reposts.sql').read_text())
 
     def add_job(self, source="linkedin", job_id="same-id", title="Test Engineer", company="Example GmbH", location="Munich"):
         with self.psycopg.connect(DSN, autocommit=True) as db:
