@@ -23,7 +23,8 @@ BEGIN
   lk := public.job_notification_key(job.location, 'location');
   uk := public.job_notification_key(job.url, 'url');
   SELECT EXISTS(SELECT 1 FROM public.arash_notification_history h
-    WHERE (uk <> '' AND h.url_key = uk)
+    WHERE (uk <> '' AND h.url_key = uk
+           AND (h.source <> p_source OR h.job_id <> p_job_id))
       OR ((h.source <> p_source OR p_source <> 'linkedin') AND tk <> '' AND ck <> '' AND h.title_key = tk AND h.company_key = ck
           AND (lk = '' OR h.location_key = '' OR lk = h.location_key
                OR position(lk in h.location_key) > 0 OR position(h.location_key in lk) > 0)))

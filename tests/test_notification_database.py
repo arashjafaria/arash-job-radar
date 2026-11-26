@@ -67,7 +67,9 @@ class TestNotificationDatabase(unittest.TestCase):
         self.assertTrue(self.claim("linkedin", "old", "old-token"))
         self.add_job(job_id="new")
         with self.psycopg.connect(DSN, autocommit=True) as db:
-            db.execute("INSERT INTO public.arash_notification_history(source,job_id,token,outcome) VALUES('linkedin','new','previous','suppressed')")
+            db.execute("""INSERT INTO public.arash_notification_history(source,job_id,token,title_key,company_key,location_key,url_key,outcome)
+                SELECT source,job_id,'previous',public.job_notification_key(title,'title'),public.job_notification_key(company,'company'),public.job_notification_key(location,'location'),public.job_notification_key(url,'url'),'suppressed'
+                FROM public.arash_jobs WHERE source='linkedin' AND job_id='new'""")
         self.assertTrue(self.claim("linkedin", "new", "fresh-token"))
         self.assertFalse(self.claim("linkedin", "new", "another"))
 
