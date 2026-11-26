@@ -27,34 +27,34 @@ class TestLiveSourceHealth(unittest.TestCase):
         )
         self.assertFalse(okay)
 
-    def test_linkedin_five_successful_searches(self):
+    def test_linkedin_six_successful_searches(self):
         log = "TOTAL UNIQUE LINKEDIN JOBS: 40\nLINKEDIN + SUPABASE SUMMARY\n"
-        log += "HTTP: 200 | bytes: 33333\n" * 5
+        log += "HTTP: 200 | bytes: 33333\n" * 6
         okay, detail = assess_log("linkedin", log)
         self.assertTrue(okay, detail)
 
     def test_linkedin_single_429_is_degraded_but_usable(self):
         log = "TOTAL UNIQUE LINKEDIN JOBS: 30\nLINKEDIN + SUPABASE SUMMARY\n"
-        log += "HTTP: 200 | bytes: 33333\n" * 4 + "HTTP: 429 | bytes: 0\n"
+        log += "HTTP: 200 | bytes: 33333\n" * 5 + "HTTP: 429 | bytes: 0\n"
         okay, detail = assess_log("linkedin", log)
         self.assertTrue(okay, detail)
         self.assertTrue(detail.startswith("DEGRADED:"))
 
     def test_linkedin_two_429s_are_failure(self):
         log = "TOTAL UNIQUE LINKEDIN JOBS: 20\nLINKEDIN + SUPABASE SUMMARY\n"
-        log += "HTTP: 200 | bytes: 33333\n" * 3 + "HTTP: 429 | bytes: 0\n" * 2
+        log += "HTTP: 200 | bytes: 33333\n" * 4 + "HTTP: 429 | bytes: 0\n" * 2
         okay, _ = assess_log("linkedin", log)
         self.assertFalse(okay)
 
     def test_linkedin_single_non_429_failure_is_failure(self):
         log = "TOTAL UNIQUE LINKEDIN JOBS: 30\nLINKEDIN + SUPABASE SUMMARY\n"
-        log += "HTTP: 200 | bytes: 33333\n" * 4 + "HTTP: 403 | bytes: 0\n"
+        log += "HTTP: 200 | bytes: 33333\n" * 5 + "HTTP: 403 | bytes: 0\n"
         okay, _ = assess_log("linkedin", log)
         self.assertFalse(okay)
 
     def test_optional_remote_http_does_not_change_local_health_count(self):
         log = "TOTAL UNIQUE LINKEDIN JOBS: 40\nLINKEDIN + SUPABASE SUMMARY\n"
-        log += "HTTP: 200 | bytes: 33333\n" * 5
+        log += "HTTP: 200 | bytes: 33333\n" * 6
         log += "  REMOTE HTTP: 429 | bytes: 0\n"
         okay, detail = assess_log("linkedin", log)
         self.assertTrue(okay, detail)

@@ -221,3 +221,31 @@ check remains configured and stops after the first HTTP 403/429; it will not
 attempt a challenge bypass. Indeed cannot be described as a working live feed
 until a server run passes. An approved alternative input such as the user's
 Indeed email alerts would require a separately configured server mail connection.
+
+## Engineering roles that apply AI (26 November 2026)
+
+The existing twenty LinkedIn queries are retained, with one additional query in
+each rotating group: AI Integration Engineer, Engineering Automation Engineer,
+AI Application Engineer Automotive, and Vehicle Engineering Automation. This is
+six local searches per 15-minute scan, each new query once per hour, with the
+same Germany/Munich discovery scope and source rate-limit policy. First-page
+searches are still a bounded sample; this does not promise complete coverage.
+The health gate now expects six local search responses.
+
+Technical preferences such as "is an advantage", "preferred", "nice-to-have",
+"von Vorteil" and "wünschenswert" are recorded separately. They cannot count as
+mandatory gaps, verified core competence, or positive mandatory-fit evidence.
+Sentence boundaries keep a preferred tool separate from a required programming
+qualification; coordinated optional skills keep their shared qualifier. Explicit
+mandatory wording wins in an ambiguous mixed clause. Required unsupported ML
+skills remain gaps. Existing description-wide FPGA/PCB exclusions and all other
+hard filters still apply even when a forbidden term is marked optional.
+
+LinkedIn extraction now includes paragraph responsibilities, avoids duplicate
+nested headings, and excludes privacy/benefit sections from requirements.
+The matcher revision is bumped so fresh never-notified records can be
+reassessed; notification reservations are never reset. Engineering application
+roles with compatible domains and insufficient CV evidence enter review rather
+than receiving an invented automatic pass. No new AI/ML skills were added to
+the candidate profile. Synthetic regressions cover the role pattern; the actual
+Xiaomi advertisement was additionally assessed locally without posting.
