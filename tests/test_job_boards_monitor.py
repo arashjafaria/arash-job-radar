@@ -1,7 +1,7 @@
 import json
 import unittest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 from bs4 import BeautifulSoup
 import job_boards_monitor as boards
 
@@ -80,6 +80,14 @@ class BoardTests(unittest.TestCase):
         with patch.object(boards,'get_job_record',return_value=None),patch.object(boards,'fetch_details',return_value=d),patch.object(boards,'assess',return_value=('manual',{'reason':'uncertain'},75)),patch.object(boards,'save_job'),patch.object(boards,'update_job'),patch.object(boards,'record_decision'),patch.object(boards,'notify_job_once',return_value=True) as send:
             r=boards.process(None,{'source':'xing','job_id':'123456789','title':'Test Engineer','url':'https://www.xing.com/jobs/test-123456789'},True)
             self.assertTrue(r['sent']);self.assertEqual(send.call_count,1)
+
+    def test_blocked_source_stops_after_one_request_and_reports_status(self):
+        error=boards.requests.HTTPError(response=Mock(status_code=403))
+        with patch.object(boards,'fetch_html',side_effect=error) as fetch,patch.object(boards.time,'sleep'):
+            report=boards.run('indeed',queries=['Test Engineer','Validation Engineer'])
+        self.assertFalse(report['healthy'])
+        self.assertEqual(fetch.call_count,1)
+        self.assertEqual(report['search_errors'][0]['http_status'],403)
 
     def test_missing_description_and_foreign_countries_fail_closed(self):
         with self.assertRaises(ValueError):boards.parse_details(BeautifulSoup('<h1>Job</h1>','html.parser'),{'title':''})
